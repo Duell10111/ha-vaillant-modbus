@@ -1,0 +1,12 @@
+{
+  "domain": "vaillant_modbus",
+  "name": "Vaillant Modbus Gateway",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["modbus"],
+  "documentation": "https://github.com/kospaeth/ha-vaillant-modbus",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/kospaeth/ha-vaillant-modbus/issues",
+  "version": "0.1.0"
+}
