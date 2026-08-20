@@ -1,0 +1,25 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      # See https://github.com/qdm12/gluetun-wiki/tree/main/setup#setup
+      - VPN_SERVICE_PROVIDER=custom
+      - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf
+      - TZ=Europe/Berlin
+      - PUBLICIP_GET_PERIOD=0
+      - PUBLICIP_HTTP_PROXY=
+      - FIREWALL_DEBUG=on
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/24
+      - DNS_UPSTREAM_RESOLVER_TYPE=plain
+      - DNS_UPSTREAM_PLAIN_ADDRESSES=192.168.0.1:53
+      - HEALTH_RESTART_VPN=off
+    volumes:
+      - ./modbus.ovpn:/gluetun/custom.conf
+      - ./ca.crt:/etc/openvpn/ca.crt
+      - ./client1.crt:/etc/openvpn/client1.crt
+      - ./client1.key:/etc/openvpn/client1.key
+      - ./iptables:/iptables
+    ports:
+      - "5020:5020/tcp"
