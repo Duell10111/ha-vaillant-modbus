@@ -1,10 +1,2 @@
-# Forward host port 5020 to the Modbus TCP endpoint in the VPN.
-iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 5020 -j DNAT --to-destination 10.3.0.1:5020
-
-# Permit only Modbus TCP traffic from Docker to the VPN endpoint.
-# Insert these rules before Gluetun's fallback reject/drop rules.
-iptables -I FORWARD 1 -i eth0 -o tun0 -p tcp -d 10.3.0.1 --dport 5020 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-iptables -I FORWARD 1 -i tun0 -o eth0 -p tcp -s 10.3.0.1 --sport 5020 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-
-# Ensure replies return through this VPN client without a remote route to Docker.
-iptables -t nat -A POSTROUTING -o tun0 -p tcp -d 10.3.0.1 --dport 5020 -j MASQUERADE
+# No custom iptables rules are required.
+# Port 5020 is handled by the modbus-forwarder service in docker-compose.yml.
