@@ -1,0 +1,118 @@
+{
+  "title": "Vaillant Modbus Gateway",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Vaillant Modbus Gateway",
+        "description": "Select a Modbus connection already owned by Home Assistant. Registers 3000-3005 are read to validate the gateway.",
+        "data": {"connection": "Modbus connection", "unit_id": "Unit ID"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to read gateway registers 3000-3005.",
+      "invalid_unit_id": "The Unit ID must be between 1 and 247.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {"already_configured": "This Modbus connection and Unit ID are already configured."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vaillant Modbus Gateway options",
+        "data": {"scan_interval": "Polling interval"}
+      }
+    }
+  },
+  "selector": {
+    "scan_interval": {
+      "options": {"5": "5 seconds", "10": "10 seconds", "30": "30 seconds", "60": "60 seconds"}
+    }
+  },
+  "device": {
+    "system": {"name": "Vaillant System"},
+    "hot_water": {"name": "Vaillant Hot Water"},
+    "heating_circuit_1": {"name": "Vaillant Heating Circuit 1"},
+    "heating_circuit_2": {"name": "Vaillant Heating Circuit 2"},
+    "heating_circuit_3": {"name": "Vaillant Heating Circuit 3"},
+    "heat_pump": {"name": "Vaillant Heat Pump"},
+    "heater_1": {"name": "Vaillant Heater 1"},
+    "heater_2": {"name": "Vaillant Heater 2"}
+  },
+  "entity": {
+    "sensor": {
+      "gateway_version": {"name": "Gateway version"},
+      "outdoor_temperature": {"name": "Outdoor temperature"},
+      "controller_version": {"name": "Controller version", "state": {"vrc_700": "VRC 700", "vrc_720": "VRC 720"}},
+      "system_special_mode": {"name": "System special mode", "state": {"none": "None", "ventilation": "Ventilation boost", "manual_cooling": "Manual cooling", "party": "Party", "quick_veto": "Quick veto", "holiday_day": "Holiday day", "bank_holiday": "Bank holiday", "away_days": "Days away", "holidays": "Holidays", "one_time_cylinder_charge": "One-time cylinder charge", "system_off": "System off"}},
+      "hydraulic_scheme": {"name": "Hydraulic scheme"},
+      "vr71_configuration": {"name": "VR71 configuration"},
+      "system_gas_energy_heating": {"name": "Gas energy heating"},
+      "system_electrical_energy_heating": {"name": "Electrical energy heating"},
+      "system_gas_energy_hot_water": {"name": "Gas energy hot water"},
+      "system_electrical_energy_hot_water": {"name": "Electrical energy hot water"},
+      "hot_water_temperature": {"name": "Hot water temperature"},
+      "heating_circuit_1_target_flow_temperature": {"name": "Target flow temperature"},
+      "heating_circuit_1_flow_temperature": {"name": "Flow temperature"},
+      "heating_circuit_1_day_temperature": {"name": "Day temperature"},
+      "heating_circuit_2_target_flow_temperature": {"name": "Target flow temperature"},
+      "heating_circuit_2_flow_temperature": {"name": "Flow temperature"},
+      "heating_circuit_2_day_temperature": {"name": "Day temperature"},
+      "heating_circuit_3_target_flow_temperature": {"name": "Target flow temperature"},
+      "heating_circuit_3_flow_temperature": {"name": "Flow temperature"},
+      "heating_circuit_3_day_temperature": {"name": "Day temperature"},
+      "heater_1_error_code_1": {"name": "Error code 1"},
+      "heater_1_error_code_2": {"name": "Error code 2"},
+      "heater_1_error_code_3": {"name": "Error code 3"},
+      "heater_1_error_code_4": {"name": "Error code 4"},
+      "heater_1_error_code_5": {"name": "Error code 5"},
+      "heater_1_flow_temperature": {"name": "Flow temperature"},
+      "heater_1_water_pressure": {"name": "Water pressure"},
+      "heater_1_modulation": {"name": "Modulation"},
+      "heater_1_target_flow_temperature": {"name": "Target flow temperature"},
+      "heater_1_return_temperature": {"name": "Return temperature"},
+      "heater_1_gas_energy_heating": {"name": "Gas energy heating"},
+      "heater_1_gas_energy_hot_water": {"name": "Gas energy hot water"},
+      "heater_1_electrical_energy_heating": {"name": "Electrical energy heating"},
+      "heater_1_electrical_energy_hot_water": {"name": "Electrical energy hot water"},
+      "heater_2_error_code_1": {"name": "Error code 1"},
+      "heater_2_error_code_2": {"name": "Error code 2"},
+      "heater_2_error_code_3": {"name": "Error code 3"},
+      "heater_2_error_code_4": {"name": "Error code 4"},
+      "heater_2_error_code_5": {"name": "Error code 5"},
+      "heater_2_flow_temperature": {"name": "Flow temperature"},
+      "heater_2_water_pressure": {"name": "Water pressure"},
+      "heater_2_modulation": {"name": "Modulation"},
+      "heater_2_target_flow_temperature": {"name": "Target flow temperature"},
+      "heater_2_return_temperature": {"name": "Return temperature"},
+      "heater_2_gas_energy_heating": {"name": "Gas energy heating"},
+      "heater_2_gas_energy_hot_water": {"name": "Gas energy hot water"},
+      "heater_2_electrical_energy_heating": {"name": "Electrical energy heating"},
+      "heater_2_electrical_energy_hot_water": {"name": "Electrical energy hot water"}
+    },
+    "binary_sensor": {
+      "ebus_active": {"name": "eBUS active"}, "controller_active": {"name": "Controller active"}, "vr71_available": {"name": "VR71 available"},
+      "hot_water_circulation_pump": {"name": "Circulation pump"},
+      "heating_circuit_1_pump": {"name": "Pump"}, "heating_circuit_2_pump": {"name": "Pump"}, "heating_circuit_3_pump": {"name": "Pump"},
+      "heater_1_flame": {"name": "Flame"}, "heater_1_heating_pump": {"name": "Heating pump"}, "heater_1_charging_pump": {"name": "Charging pump"},
+      "heater_2_flame": {"name": "Flame"}, "heater_2_heating_pump": {"name": "Heating pump"}, "heater_2_charging_pump": {"name": "Charging pump"}
+    },
+    "number": {
+      "hot_water_target_temperature": {"name": "Hot water target temperature"}, "hot_water_charging_hysteresis": {"name": "Charging hysteresis"}, "hot_water_charging_offset": {"name": "Charging offset"}, "hot_water_maximum_charging_time": {"name": "Maximum charging time"}, "hot_water_heat_pump_blocking_time": {"name": "Heat pump blocking time"},
+      "heating_circuit_1_heating_curve": {"name": "Heating curve"}, "heating_circuit_1_minimum_flow_temperature": {"name": "Minimum flow temperature"}, "heating_circuit_1_maximum_flow_temperature": {"name": "Maximum flow temperature"}, "heating_circuit_1_night_temperature": {"name": "Night temperature"}, "heating_circuit_1_outdoor_shutdown_temperature": {"name": "Outdoor shutdown temperature"},
+      "heating_circuit_2_heating_curve": {"name": "Heating curve"}, "heating_circuit_2_minimum_flow_temperature": {"name": "Minimum flow temperature"}, "heating_circuit_2_maximum_flow_temperature": {"name": "Maximum flow temperature"}, "heating_circuit_2_night_temperature": {"name": "Night temperature"}, "heating_circuit_2_outdoor_shutdown_temperature": {"name": "Outdoor shutdown temperature"},
+      "heating_circuit_3_heating_curve": {"name": "Heating curve"}, "heating_circuit_3_minimum_flow_temperature": {"name": "Minimum flow temperature"}, "heating_circuit_3_maximum_flow_temperature": {"name": "Maximum flow temperature"}, "heating_circuit_3_night_temperature": {"name": "Night temperature"}, "heating_circuit_3_outdoor_shutdown_temperature": {"name": "Outdoor shutdown temperature"},
+      "heat_pump_emergency_temperature": {"name": "Emergency temperature"}, "heat_pump_heating_bivalence_point": {"name": "Heating bivalence point"}, "heat_pump_hot_water_bivalence_point": {"name": "Hot water bivalence point"}, "heat_pump_cooling_start_temperature": {"name": "Cooling start temperature"}, "heat_pump_heating_alternative_point": {"name": "Heating alternative point"}
+    },
+    "select": {
+      "heating_circuit_1_mode": {"name": "Mode", "state": {"off": "Off", "auto": "Auto", "day_manual": "Day / manual", "night": "Night"}},
+      "heating_circuit_2_mode": {"name": "Mode", "state": {"off": "Off", "auto": "Auto", "day_manual": "Day / manual", "night": "Night"}},
+      "heating_circuit_3_mode": {"name": "Mode", "state": {"off": "Off", "auto": "Auto", "day_manual": "Day / manual", "night": "Night"}},
+      "heat_pump_energy_provider": {"name": "Energy provider", "state": {"heat_pump_off": "Heat pump off", "auxiliary_heater_off": "Auxiliary heater off", "heat_pump_and_auxiliary_heater_off": "Heat pump and auxiliary heater off", "heating_off": "Heating off", "cooling_off": "Cooling off", "heating_and_cooling_off": "Heating and cooling off"}},
+      "heat_pump_hybrid_manager": {"name": "Hybrid manager", "state": {"trivalent": "Trivalent", "bivalence_point": "Bivalence point"}},
+      "heat_pump_auxiliary_heater_mode": {"name": "Auxiliary heater mode", "state": {"off": "Off", "heating": "Heating", "hot_water": "Hot water", "heating_and_hot_water": "Heating and hot water"}}
+    },
+    "switch": {
+      "heating_circuit_1_special_mode": {"name": "Ventilation boost"}, "heating_circuit_2_special_mode": {"name": "Ventilation boost"}, "heating_circuit_3_special_mode": {"name": "Ventilation boost"}
+    }
+  }
+}

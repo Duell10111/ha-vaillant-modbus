@@ -1,0 +1,34 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create beta release
+        if: github.ref_name == 'dev'
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: dev
+          config-file: release-please-config.dev.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Create stable release
+        if: github.ref_name == 'main'
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: main
+          config-file: release-please-config.main.json
+          manifest-file: .release-please-manifest.json

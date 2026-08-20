@@ -1,0 +1,2 @@
+# No custom iptables rules are required.
+# Port 5020 is handled by the modbus-forwarder service in docker-compose.yml.

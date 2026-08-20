@@ -1,4 +1,19 @@
-# IDEAL Studio project files
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+*.egg-info/
 
+# Home Assistant local development
+config/
+deps/
+
+# IDEs and operating systems
 /.idea/
-ha-vaillant-modbus.iml
+*.iml
+.DS_Store
