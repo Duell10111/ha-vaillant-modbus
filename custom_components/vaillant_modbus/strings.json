@@ -8,10 +8,14 @@
         "data": {
           "connection": "Modbus connection",
           "unit_id": "Unit ID",
-          "access_mode": "Access mode"
+          "access_mode": "Access mode",
+          "heating_circuit_2": "Heating circuit 2",
+          "heating_circuit_3": "Heating circuit 3"
         },
         "data_description": {
-          "access_mode": "Read-only never writes to the heating system. Read and write allows changes from Home Assistant."
+          "access_mode": "Read-only never writes to the heating system. Read and write allows changes from Home Assistant.",
+          "heating_circuit_2": "Heating circuits 2 and 3 are off by default. They need a VR71 extension and are only polled once enabled here.",
+          "heating_circuit_3": "Heating circuits 2 and 3 are off by default. They need a VR71 extension and are only polled once enabled here."
         }
       }
     },
@@ -31,10 +35,14 @@
         "title": "Vaillant Modbus Gateway options",
         "data": {
           "scan_interval": "Polling interval",
-          "access_mode": "Access mode"
+          "access_mode": "Access mode",
+          "heating_circuit_2": "Heating circuit 2",
+          "heating_circuit_3": "Heating circuit 3"
         },
         "data_description": {
-          "access_mode": "Read-only never writes to the heating system. Read and write allows changes from Home Assistant."
+          "access_mode": "Read-only never writes to the heating system. Read and write allows changes from Home Assistant.",
+          "heating_circuit_2": "Heating circuits 2 and 3 are off by default. They need a VR71 extension and are only polled once enabled here.",
+          "heating_circuit_3": "Heating circuits 2 and 3 are off by default. They need a VR71 extension and are only polled once enabled here."
         }
       }
     }

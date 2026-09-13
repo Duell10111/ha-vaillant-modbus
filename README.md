@@ -2,8 +2,8 @@
 
 Home Assistant custom integration for the **Vaillant Gateway eBUS/Modbus SV2**.
 It exposes gateway diagnostics, system data, domestic hot water, up to three
-heating circuits, heat-pump parameters, up to two heat generators, errors, and
-energy counters. Version: **0.1.0**; domain: `vaillant_modbus`.
+heating circuits (circuits 2 and 3 opt-in), heat-pump parameters, up to two
+heat generators, errors, and energy counters. Version: **0.1.0**; domain: `vaillant_modbus`.
 
 The SV2 gateway translates data between a Vaillant eBUS heating system and
 Modbus. This integration does not open another TCP, UDP, or serial connection.
@@ -86,15 +86,37 @@ HACS-specific runtime logic.
 5. Choose the access mode. **Read only** is the default for new installations
    and never sends a write to the heating system; **Read and write** allows
    changes from Home Assistant.
+6. Enable heating circuit 2 and heating circuit 3 if the system has them. Both
+   are **off by default** and can be switched on independently of each other.
 
 The config flow reads holding registers `3000`–`3005`. Setup is rejected if the
 gateway does not return exactly six valid 16-bit words. A connection/Unit-ID
 pair can be configured only once.
 
-The polling interval and the access mode can both be changed at any time under
-**Configure**, without removing the integration. The interval accepts 5, 10,
-30, or 60 seconds and defaults to 10 seconds. Individual requests are spaced by
-at least one second and never read more than 16 registers.
+The polling interval, the access mode, and both optional heating circuits can
+be changed at any time under **Configure**, without removing the integration.
+The interval accepts 5, 10, 30, or 60 seconds and defaults to 10 seconds.
+Individual requests are spaced by at least one second and never read more than
+16 registers.
+
+## Optional heating circuits
+
+Heating circuit 1 is always present. Heating circuits 2 and 3 are opt-in and
+are controlled by two independent switches in the setup dialog and under
+**Configure**:
+
+- A disabled circuit is never polled, so it costs no bus traffic, and it
+  produces no entities and no device.
+- Enabling a circuit is allowed even when the gateway does not report a VR71
+  extension. The blocks are optional, so a system that does not answer them
+  degrades to unavailable entities instead of failing the whole integration.
+- Disabling a circuit removes its entities and its device from the registries,
+  so nothing is left behind as permanently unavailable.
+
+The choice comes from the configuration alone and never from a register read.
+An eBUS or controller outage therefore cannot add or remove heating-circuit
+entities. Changes take effect after the automatic reload that follows saving
+the options.
 
 ## Implemented registers
 
@@ -102,8 +124,8 @@ at least one second and never read more than 16 registers.
 | --- | ---: | --- |
 | Domestic hot water | 1–8 | Target/actual temperature, charging settings, pump |
 | Heating circuit 1 | 100–110 | Temperatures, curve, mode, pump, special mode |
-| Heating circuit 2 | 150–160 | As circuit 1; only with detected VR71 |
-| Heating circuit 3 | 200–210 | As circuit 1; only with detected VR71 |
+| Heating circuit 2 | 150–160 | As circuit 1; off unless enabled in the options |
+| Heating circuit 3 | 200–210 | As circuit 1; off unless enabled in the options |
 | Heat pump | 500–507 | Signed temperatures and translated enum parameters |
 | System | 550–554 | Outdoor temperature, controller, mode, hydraulic data |
 | System energy | 560–567 | 32-bit big-endian counters in kWh |
@@ -144,7 +166,8 @@ installer's original configuration.
 
 Use **Download diagnostics** on the integration entry. The report includes
 gateway/controller versions, status flags, capabilities, the active access
-mode, last successful poll, and failed optional blocks. Connection identifiers and all transport/network
+mode, the enabled heating circuits, last successful poll, and failed optional
+blocks. Connection identifiers and all transport/network
 details are redacted.
 
 ## Debug logging
@@ -164,6 +187,9 @@ not post a complete Home Assistant configuration publicly.
 - Time programs in registers `600`–`613` are intentionally not supported in
   0.1.0. They require a transactional day/system/trigger/busy/queue workflow;
   exposing them as independent number entities would be unsafe.
+- Heating circuits 2 and 3 are never auto-enabled. A system with a VR71
+  extension needs both switches turned on once, in the setup dialog or under
+  **Configure**.
 - There is no explicit VR32 presence register. Heat generator 2 is exposed only
   after successful reads with meaningful data.
 - Heat-pump presence is inferred conservatively from valid, non-zero parameter
