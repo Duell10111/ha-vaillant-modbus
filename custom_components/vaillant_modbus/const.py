@@ -1,6 +1,7 @@
 """Constants for the Vaillant Modbus Gateway integration."""
 
 from datetime import timedelta
+from types import MappingProxyType
 from typing import Final
 
 from homeassistant.const import Platform
@@ -24,6 +25,18 @@ ACCESS_MODES: Final = (ACCESS_MODE_READ_ONLY, ACCESS_MODE_READ_WRITE)
 DEFAULT_ACCESS_MODE: Final = ACCESS_MODE_READ_ONLY
 # Entries created before this option existed keep their previous behavior.
 LEGACY_ACCESS_MODE: Final = ACCESS_MODE_READ_WRITE
+
+CONF_HEATING_CIRCUIT_2: Final = "heating_circuit_2"
+CONF_HEATING_CIRCUIT_3: Final = "heating_circuit_3"
+
+# Heating circuits 2 and 3 require a VR71 extension. They are opt-in so that a
+# single-circuit system is never cluttered with entities it can never serve.
+DEFAULT_HEATING_CIRCUIT_ENABLED: Final = False
+# Circuit number to option key. The key is also the component name used by the
+# register map, the device identifier, and the poll-block capability.
+HEATING_CIRCUIT_OPTIONS: Final = MappingProxyType(
+    {2: CONF_HEATING_CIRCUIT_2, 3: CONF_HEATING_CIRCUIT_3}
+)
 
 DEFAULT_UNIT_ID: Final = 1
 DEFAULT_SCAN_INTERVAL: Final = 10

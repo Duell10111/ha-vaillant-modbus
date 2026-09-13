@@ -7,7 +7,13 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_CONNECTION, CONF_UNIT_ID, VERSION
+from .const import (
+    CONF_CONNECTION,
+    CONF_UNIT_ID,
+    DEFAULT_HEATING_CIRCUIT_ENABLED,
+    HEATING_CIRCUIT_OPTIONS,
+    VERSION,
+)
 from .coordinator import VaillantConfigEntry
 from .modbus_api import LEGACY_PREFIX
 
@@ -32,6 +38,10 @@ async def async_get_config_entry_diagnostics(
         },
         "unit_id": int(entry.data[CONF_UNIT_ID]),
         "access_mode": coordinator.access_mode,
+        "heating_circuit_options": {
+            key: bool(entry.options.get(key, DEFAULT_HEATING_CIRCUIT_ENABLED))
+            for key in HEATING_CIRCUIT_OPTIONS.values()
+        },
         "gateway_version": values.get("gateway_version"),
         "controller_version": values.get("controller_version"),
         "ebus_active": values.get("ebus_active"),
