@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.2](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.2.0-beta.1...v0.2.0-beta.2) (2026-09-13)
+
+
+### Features
+
+* add optional heating circuit configuration for Vaillant Modbus Gateway ([ddf8ac6](https://github.com/Duell10111/ha-vaillant-modbus/commit/ddf8ac60074fcee0c9381dfafe8f9a8e1c251de8))
+
 ## [0.2.0-beta.1](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.1.0...v0.2.0-beta.1) (2026-09-13)
 
 
