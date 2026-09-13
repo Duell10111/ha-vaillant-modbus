@@ -11,6 +11,8 @@ from custom_components.vaillant_modbus.const import (
     ACCESS_MODE_READ_WRITE,
     CONF_ACCESS_MODE,
     CONF_CONNECTION,
+    CONF_HEATING_CIRCUIT_2,
+    CONF_HEATING_CIRCUIT_3,
     CONF_UNIT_ID,
     DOMAIN,
 )
@@ -181,3 +183,82 @@ async def test_missing_access_mode_option_writes(hass: HomeAssistant) -> None:
     )
     assert unit.writes == [(1, 500)]
     await coordinator.async_shutdown()
+
+
+def _vr71_responses() -> dict[int, list[int]]:
+    """Gateway responses of a system that reports a VR71 extension."""
+    responses = _active_responses()
+    responses[3000] = [1, 20, 0, 1, 1, 1]
+    responses[150] = [350, 340, 120, 150, 700, 1, 210, 180, 1, 0, 200]
+    responses[200] = [360, 350, 130, 160, 710, 1, 215, 185, 1, 0, 205]
+    return responses
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_optional_circuits_are_off_by_default(hass: HomeAssistant) -> None:
+    """A reported VR71 alone must not poll or expose circuits 2 and 3."""
+    unit = MockUnit(_vr71_responses())
+    coordinator = VaillantCoordinator(hass, _entry(hass), unit, 1)
+
+    await coordinator.async_refresh()
+
+    assert coordinator.data.capabilities.has_vr71 is True
+    assert coordinator.data.capabilities.heating_circuits == (1,)
+    assert 150 not in [address for address, _ in unit.calls]
+    assert 200 not in [address for address, _ in unit.calls]
+    for key in ("heating_circuit_2_mode", "heating_circuit_3_mode"):
+        assert not coordinator.definition_is_supported(REGISTER_BY_KEY[key])
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_enabled_circuit_is_polled_without_vr71(hass: HomeAssistant) -> None:
+    """An enabled circuit is polled even when the gateway reports no VR71."""
+    unit = MockUnit(_active_responses() | {150: [1] * 11})
+    entry = _entry(hass, {CONF_HEATING_CIRCUIT_2: True})
+    coordinator = VaillantCoordinator(hass, entry, unit, 1)
+
+    await coordinator.async_refresh()
+
+    assert coordinator.data.capabilities.has_vr71 is False
+    assert coordinator.data.capabilities.heating_circuits == (1, 2)
+    assert (150, 11) in unit.calls
+    assert coordinator.definition_is_supported(
+        REGISTER_BY_KEY["heating_circuit_2_mode"]
+    )
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_circuits_are_gated_independently(hass: HomeAssistant) -> None:
+    """Switching off circuit 2 must leave circuit 3 polled and exposed."""
+    unit = MockUnit(_vr71_responses())
+    entry = _entry(hass, {CONF_HEATING_CIRCUIT_2: False, CONF_HEATING_CIRCUIT_3: True})
+    coordinator = VaillantCoordinator(hass, entry, unit, 1)
+
+    await coordinator.async_refresh()
+
+    assert coordinator.data.capabilities.heating_circuits == (1, 3)
+    assert (150, 11) not in unit.calls
+    assert (200, 11) in unit.calls
+    assert not coordinator.definition_is_supported(
+        REGISTER_BY_KEY["heating_circuit_2_mode"]
+    )
+    assert coordinator.definition_is_supported(
+        REGISTER_BY_KEY["heating_circuit_3_mode"]
+    )
+    assert coordinator.data.values["heating_circuit_3_flow_temperature"] == 35.0
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_disabled_circuit_stays_off_while_ebus_is_down(
+    hass: HomeAssistant,
+) -> None:
+    """Circuit gating is configuration-driven and survives an eBUS outage."""
+    responses = _vr71_responses()
+    responses[3000] = [1, 20, 0, 0, 1, 1]
+    entry = _entry(hass, {CONF_HEATING_CIRCUIT_3: True})
+    coordinator = VaillantCoordinator(hass, entry, MockUnit(responses), 1)
+
+    await coordinator.async_refresh()
+
+    assert coordinator.data.values["ebus_active"] is False
+    assert coordinator.data.capabilities.heating_circuits == (1, 3)

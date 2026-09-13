@@ -17,7 +17,11 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Final
 
-from .const import MAX_REGISTERS_PER_REQUEST
+from .const import (
+    CONF_HEATING_CIRCUIT_2,
+    CONF_HEATING_CIRCUIT_3,
+    MAX_REGISTERS_PER_REQUEST,
+)
 
 
 class RegisterDataType(StrEnum):
@@ -743,8 +747,8 @@ POLL_BLOCKS: Final = (
     RegisterBlock("gateway", 3000, 6, optional=False),
     RegisterBlock("hot_water", 1, 8),
     RegisterBlock("hc1", 100, 11),
-    RegisterBlock("hc2", 150, 11, capability="vr71"),
-    RegisterBlock("hc3", 200, 11, capability="vr71"),
+    RegisterBlock("hc2", 150, 11, capability=CONF_HEATING_CIRCUIT_2),
+    RegisterBlock("hc3", 200, 11, capability=CONF_HEATING_CIRCUIT_3),
     RegisterBlock("heat_pump", 500, 8, capability="heat_pump"),
     RegisterBlock("system_status", 550, 5),
     RegisterBlock("system_energy", 560, 8),

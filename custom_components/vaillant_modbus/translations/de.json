@@ -5,8 +5,8 @@
       "user": {
         "title": "Vaillant Modbus Gateway verbinden",
         "description": "Wähle eine bereits von Home Assistant verwaltete Modbus-Verbindung. Zur Prüfung werden die Gateway-Register 3000-3005 gelesen.",
-        "data": {"connection": "Modbus-Verbindung", "unit_id": "Unit ID", "access_mode": "Zugriffsmodus"},
-        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant."}
+        "data": {"connection": "Modbus-Verbindung", "unit_id": "Unit ID", "access_mode": "Zugriffsmodus", "heating_circuit_2": "Heizkreis 2", "heating_circuit_3": "Heizkreis 3"},
+        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant.", "heating_circuit_2": "Heizkreis 2 und 3 sind standardmäßig aus. Sie setzen eine VR71-Erweiterung voraus und werden erst abgefragt, wenn sie hier aktiviert sind.", "heating_circuit_3": "Heizkreis 2 und 3 sind standardmäßig aus. Sie setzen eine VR71-Erweiterung voraus und werden erst abgefragt, wenn sie hier aktiviert sind."}
       }
     },
     "error": {
@@ -21,8 +21,8 @@
     "step": {
       "init": {
         "title": "Optionen für Vaillant Modbus Gateway",
-        "data": {"scan_interval": "Abfrageintervall", "access_mode": "Zugriffsmodus"},
-        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant."}
+        "data": {"scan_interval": "Abfrageintervall", "access_mode": "Zugriffsmodus", "heating_circuit_2": "Heizkreis 2", "heating_circuit_3": "Heizkreis 3"},
+        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant.", "heating_circuit_2": "Heizkreis 2 und 3 sind standardmäßig aus. Sie setzen eine VR71-Erweiterung voraus und werden erst abgefragt, wenn sie hier aktiviert sind.", "heating_circuit_3": "Heizkreis 2 und 3 sind standardmäßig aus. Sie setzen eine VR71-Erweiterung voraus und werden erst abgefragt, wenn sie hier aktiviert sind."}
       }
     }
   },

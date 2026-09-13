@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any, override
 
 import voluptuous as vol
@@ -14,6 +15,7 @@ from homeassistant.config_entries import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -29,9 +31,11 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_UNIT_ID,
     DEFAULT_ACCESS_MODE,
+    DEFAULT_HEATING_CIRCUIT_ENABLED,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_UNIT_ID,
     DOMAIN,
+    HEATING_CIRCUIT_OPTIONS,
     LEGACY_ACCESS_MODE,
     MAX_UNIT_ID,
     NAME,
@@ -64,8 +68,30 @@ def _user_schema(hass: HomeAssistant) -> vol.Schema:
             vol.Required(
                 CONF_ACCESS_MODE, default=DEFAULT_ACCESS_MODE
             ): _access_mode_selector(),
+            **_heating_circuit_schema({}),
         }
     )
+
+
+def _heating_circuit_schema(
+    options: Mapping[str, Any],
+) -> dict[vol.Marker, BooleanSelector]:
+    """Return one opt-in toggle per optional heating circuit."""
+    return {
+        vol.Required(
+            key,
+            default=bool(options.get(key, DEFAULT_HEATING_CIRCUIT_ENABLED)),
+        ): BooleanSelector()
+        for key in HEATING_CIRCUIT_OPTIONS.values()
+    }
+
+
+def _heating_circuit_input(user_input: Mapping[str, Any]) -> dict[str, bool]:
+    """Return the submitted heating-circuit toggles as plain booleans."""
+    return {
+        key: bool(user_input.get(key, DEFAULT_HEATING_CIRCUIT_ENABLED))
+        for key in HEATING_CIRCUIT_OPTIONS.values()
+    }
 
 
 def _access_mode_selector() -> SelectSelector:
@@ -98,12 +124,13 @@ class VaillantOptionsFlow(OptionsFlowWithReload):
         if user_input is not None:
             scan_interval = int(user_input[CONF_SCAN_INTERVAL])
             access_mode = str(user_input[CONF_ACCESS_MODE])
-            # Options are replaced wholesale, so always write both keys.
+            # Options are replaced wholesale, so always write every key.
             return self.async_create_entry(
                 title="",
                 data={
                     CONF_SCAN_INTERVAL: scan_interval,
                     CONF_ACCESS_MODE: access_mode,
+                    **_heating_circuit_input(user_input),
                 },
             )
 
@@ -131,6 +158,7 @@ class VaillantOptionsFlow(OptionsFlowWithReload):
                     vol.Required(
                         CONF_ACCESS_MODE, default=current_access_mode
                     ): _access_mode_selector(),
+                    **_heating_circuit_schema(self.config_entry.options),
                 }
             ),
         )
@@ -200,7 +228,10 @@ class VaillantConfigFlow(ConfigFlow, domain=DOMAIN):
                                 CONF_UNIT_ID: unit_id,
                                 "gateway_version": gateway_version,
                             },
-                            options={CONF_ACCESS_MODE: access_mode},
+                            options={
+                                CONF_ACCESS_MODE: access_mode,
+                                **_heating_circuit_input(user_input),
+                            },
                         )
 
         return self.async_show_form(

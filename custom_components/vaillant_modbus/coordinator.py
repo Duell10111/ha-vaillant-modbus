@@ -17,9 +17,13 @@ from homeassistant.util import dt as dt_util
 from .const import (
     ACCESS_MODE_READ_ONLY,
     CONF_ACCESS_MODE,
+    CONF_HEATING_CIRCUIT_2,
+    CONF_HEATING_CIRCUIT_3,
     CONF_SCAN_INTERVAL,
+    DEFAULT_HEATING_CIRCUIT_ENABLED,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    HEATING_CIRCUIT_OPTIONS,
     LEGACY_ACCESS_MODE,
     MIN_SCAN_INTERVAL,
 )
@@ -45,10 +49,13 @@ _OPTIONAL_PROBE_INTERVAL = timedelta(minutes=30)
 
 @dataclass(frozen=True, slots=True)
 class VaillantCapabilities:
-    """Capabilities conservatively inferred from gateway status and valid reads."""
+    """Capabilities from configuration, gateway status, and valid reads."""
 
     has_vr71: bool = False
-    heating_circuits: int = 1
+    # Circuits 2 and 3 are configured, not detected: an operator may run them
+    # without the gateway reporting a VR71, and may switch off circuits that
+    # exist but are unused.
+    heating_circuits: tuple[int, ...] = (1,)
     has_heat_pump: bool = False
     has_heater_1: bool = False
     has_heater_2: bool = False
@@ -98,6 +105,18 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
         self._last_optional_probe: datetime | None = None
         self._reported_failed_blocks: set[str] = set()
 
+    def _enabled_heating_circuits(self) -> tuple[int, ...]:
+        """Return the heating circuits enabled for this entry."""
+        options = self.config_entry.options
+        return (
+            1,
+            *(
+                number
+                for number, key in HEATING_CIRCUIT_OPTIONS.items()
+                if bool(options.get(key, DEFAULT_HEATING_CIRCUIT_ENABLED))
+            ),
+        )
+
     async def _async_read_block(self, block: RegisterBlock) -> list[int]:
         """Read and validate a single contiguous holding-register block."""
         words = await self.unit.read_holding_registers(block.address, block.count)
@@ -128,8 +147,8 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
             values[definition.key] = decode_registers(definition, words)
         return values
 
-    @staticmethod
     def _infer_capabilities(
+        self,
         values: dict[str, Any],
         raw_registers: dict[int, int],
         available_blocks: set[str],
@@ -162,7 +181,7 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
         )
         return VaillantCapabilities(
             has_vr71=has_vr71,
-            heating_circuits=3 if has_vr71 else 1,
+            heating_circuits=self._enabled_heating_circuits(),
             has_heat_pump=has_heat_pump,
             has_heater_1=has_heater_1,
             has_heater_2=has_heater_2,
@@ -182,8 +201,10 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
     ) -> bool:
         if block.capability is None:
             return True
-        if block.capability == "vr71":
-            return capabilities.has_vr71
+        if block.capability == CONF_HEATING_CIRCUIT_2:
+            return 2 in capabilities.heating_circuits
+        if block.capability == CONF_HEATING_CIRCUIT_3:
+            return 3 in capabilities.heating_circuits
         if block.capability == "heat_pump":
             return capabilities.has_heat_pump or probe_optional
         if block.capability == "heater_2":
@@ -228,7 +249,7 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
                 available_blocks=frozenset(available_blocks),
                 capabilities=VaillantCapabilities(
                     has_vr71=gateway_values["vr71_available"],
-                    heating_circuits=(3 if gateway_values["vr71_available"] else 1),
+                    heating_circuits=self._enabled_heating_circuits(),
                     has_heat_pump=previous.has_heat_pump,
                     has_heater_1=previous.has_heater_1,
                     has_heater_2=previous.has_heater_2,
@@ -238,7 +259,7 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
 
         initial_capabilities = VaillantCapabilities(
             has_vr71=gateway_values["vr71_available"],
-            heating_circuits=3 if gateway_values["vr71_available"] else 1,
+            heating_circuits=self._enabled_heating_circuits(),
             has_heat_pump=(
                 self.data.capabilities.has_heat_pump if self.data is not None else False
             ),
@@ -305,8 +326,10 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
         capabilities = self.data.capabilities
         if component in {"gateway", "system", "hot_water", "heating_circuit_1"}:
             return True
-        if component in {"heating_circuit_2", "heating_circuit_3"}:
-            return capabilities.has_vr71
+        if component == CONF_HEATING_CIRCUIT_2:
+            return 2 in capabilities.heating_circuits
+        if component == CONF_HEATING_CIRCUIT_3:
+            return 3 in capabilities.heating_circuits
         if component == "heat_pump":
             return capabilities.has_heat_pump
         if component == "heater_1":
