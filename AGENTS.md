@@ -77,6 +77,10 @@ order, stop and request clarification.
   big-endian register order for 32-bit and 64-bit values.
 - Only definitions explicitly documented as writable may be exposed for
   writing. All writes must pass through the central `encode_register` path.
+- Every write must go through `VaillantCoordinator.async_write_value`, and any
+  new write path must respect its `read_only` access-mode guard. The guard runs
+  before encoding; never add a path that reaches the bus while an entry is
+  configured as `read_only`.
 - Enforce documented minimum, maximum, step, enum, width, and data-type
   constraints before issuing a write. Reject read-only and multi-register
   writes through the normal entity write path.

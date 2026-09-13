@@ -83,14 +83,18 @@ HACS-specific runtime logic.
 2. Add **Vaillant Modbus Gateway** under **Settings > Devices & services**.
 3. Select the existing Modbus connection.
 4. Enter the gateway Unit ID (`1` by default; valid range `1`–`247`).
+5. Choose the access mode. **Read only** is the default for new installations
+   and never sends a write to the heating system; **Read and write** allows
+   changes from Home Assistant.
 
 The config flow reads holding registers `3000`–`3005`. Setup is rejected if the
 gateway does not return exactly six valid 16-bit words. A connection/Unit-ID
 pair can be configured only once.
 
-The polling interval can be changed under **Configure** to 5, 10, 30, or 60
-seconds. The default is 10 seconds. Individual requests are spaced by at least
-one second and never read more than 16 registers.
+The polling interval and the access mode can both be changed at any time under
+**Configure**, without removing the integration. The interval accepts 5, 10,
+30, or 60 seconds and defaults to 10 seconds. Individual requests are spaced by
+at least one second and never read more than 16 registers.
 
 ## Implemented registers
 
@@ -115,6 +119,17 @@ Holding registers use function `0x03`; single writable parameters use function
 
 ## Writing and safety
 
+The access mode decides whether the integration may write at all. In
+`read_only` mode every write is rejected centrally in the coordinator, before
+the value is even encoded, so no write ever reaches the bus. In `read_write`
+mode the integration behaves as described below.
+
+**The set of entities is identical in both modes.** Read-only mode hides
+nothing: all numbers, selects, and switches remain and keep showing their
+current value, so dashboards, automations, history, and entity IDs survive a
+mode change unchanged. Existing installations that are updated to this version
+keep write access; only newly added entries default to read-only.
+
 Writable entities are generated only for parameters explicitly marked `RD/WR`
 in manual V1.20. Values are validated against documented minimum, maximum, and
 step constraints before encoding. Signed values use two's complement and
@@ -128,8 +143,8 @@ installer's original configuration.
 ## Diagnostics
 
 Use **Download diagnostics** on the integration entry. The report includes
-gateway/controller versions, status flags, capabilities, last successful poll,
-and failed optional blocks. Connection identifiers and all transport/network
+gateway/controller versions, status flags, capabilities, the active access
+mode, last successful poll, and failed optional blocks. Connection identifiers and all transport/network
 details are redacted.
 
 ## Debug logging
@@ -155,6 +170,11 @@ not post a complete Home Assistant configuration publicly.
   data.
 - Optional hardware added while Home Assistant is running may require an
   integration reload before its entities are created.
+- In read-only mode, `number`, `select`, and `switch` entities still look
+  operable in the user interface. Operating one produces an error message and
+  the value jumps back to the last polled state. Automations that write in this
+  mode fail loudly rather than being silently ineffective; switching back to
+  read and write is a single change under **Configure**.
 
 ## Development
 

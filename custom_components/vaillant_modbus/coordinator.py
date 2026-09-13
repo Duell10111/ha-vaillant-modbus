@@ -15,9 +15,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    ACCESS_MODE_READ_ONLY,
+    CONF_ACCESS_MODE,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    LEGACY_ACCESS_MODE,
     MIN_SCAN_INTERVAL,
 )
 from .modbus_api import ModbusUnitHandle
@@ -323,10 +326,27 @@ class VaillantCoordinator(DataUpdateCoordinator[VaillantData]):
             return False
         return definition.key in self.data.values
 
+    @property
+    def access_mode(self) -> str:
+        """Return the configured access mode for this entry."""
+        return str(self.config_entry.options.get(CONF_ACCESS_MODE, LEGACY_ACCESS_MODE))
+
+    @property
+    def read_only(self) -> bool:
+        """Return whether writes to the heating system are disabled."""
+        return self.access_mode == ACCESS_MODE_READ_ONLY
+
     async def async_write_value(
         self, definition: RegisterDefinition, value: object
     ) -> None:
         """Safely encode, write with function 0x06, and refresh shared state."""
+        # Checked before encoding so that read-only mode has no path to bus I/O.
+        if self.read_only:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="read_only_mode",
+                translation_placeholders={"key": definition.key},
+            )
         raw = encode_register(definition, value)
         if not self.definition_is_available(definition):
             raise HomeAssistantError(

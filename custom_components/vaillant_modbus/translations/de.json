@@ -5,12 +5,14 @@
       "user": {
         "title": "Vaillant Modbus Gateway verbinden",
         "description": "Wähle eine bereits von Home Assistant verwaltete Modbus-Verbindung. Zur Prüfung werden die Gateway-Register 3000-3005 gelesen.",
-        "data": {"connection": "Modbus-Verbindung", "unit_id": "Unit ID"}
+        "data": {"connection": "Modbus-Verbindung", "unit_id": "Unit ID", "access_mode": "Zugriffsmodus"},
+        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant."}
       }
     },
     "error": {
       "cannot_connect": "Die Gateway-Register 3000-3005 konnten nicht gelesen werden.",
       "invalid_unit_id": "Die Unit ID muss zwischen 1 und 247 liegen.",
+      "invalid_access_mode": "Wähle entweder Nur lesen oder Lesen und schreiben.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {"already_configured": "Diese Modbus-Verbindung und Unit ID sind bereits konfiguriert."}
@@ -19,14 +21,21 @@
     "step": {
       "init": {
         "title": "Optionen für Vaillant Modbus Gateway",
-        "data": {"scan_interval": "Abfrageintervall"}
+        "data": {"scan_interval": "Abfrageintervall", "access_mode": "Zugriffsmodus"},
+        "data_description": {"access_mode": "Nur Lesen schreibt niemals in die Heizung. Lesen und Schreiben erlaubt Änderungen aus Home Assistant."}
       }
     }
   },
   "selector": {
+    "access_mode": {
+      "options": {"read_only": "Nur lesen", "read_write": "Lesen und schreiben"}
+    },
     "scan_interval": {
       "options": {"5": "5 Sekunden", "10": "10 Sekunden", "30": "30 Sekunden", "60": "60 Sekunden"}
     }
+  },
+  "exceptions": {
+    "read_only_mode": {"message": "{key} wurde nicht geschrieben: Die Integration läuft im Nur-Lesen-Modus. Ändere den Zugriffsmodus in den Optionen der Integration, um Schreiben zu erlauben."}
   },
   "device": {
     "system": {"name": "Vaillant System"},

@@ -31,6 +31,7 @@ async def async_get_config_entry_diagnostics(
             "identifier": "**REDACTED**",
         },
         "unit_id": int(entry.data[CONF_UNIT_ID]),
+        "access_mode": coordinator.access_mode,
         "gateway_version": values.get("gateway_version"),
         "controller_version": values.get("controller_version"),
         "ebus_active": values.get("ebus_active"),
