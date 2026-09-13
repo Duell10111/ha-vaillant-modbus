@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Create beta release
         if: github.ref_name == 'dev'
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target-branch: dev
@@ -26,7 +26,7 @@ jobs:
 
       - name: Create stable release
         if: github.ref_name == 'main'
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target-branch: main
