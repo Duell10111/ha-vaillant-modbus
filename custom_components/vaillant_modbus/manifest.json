@@ -3,7 +3,9 @@
   "name": "Vaillant Modbus Gateway",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": ["modbus"],
+  "dependencies": [
+    "modbus"
+  ],
   "documentation": "https://github.com/kospaeth/ha-vaillant-modbus",
   "integration_type": "device",
   "iot_class": "local_polling",
