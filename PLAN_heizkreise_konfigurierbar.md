@@ -214,10 +214,16 @@ Kein Zugriff auf die reale Anlage; alles über `MockUnit` aus
   automatischen Entry-Reload nach dem Speichern, nicht im laufenden Poll-Zyklus.
 - Register 600–613 (Zeitprogramme) bleiben wie dokumentiert unangetastet.
 
-## Offene Entscheidungen
+## Entschiedene Punkte
 
-1. Sollen die Schalter zusätzlich im Setup-Dialog erscheinen? → Empfehlung: ja
-   (siehe 4.), da ohne Hinweis sonst niemand ahnt, dass HK2/HK3 existieren.
-2. Soll das Aktivieren ohne gemeldetes VR71 erlaubt sein? → Empfehlung: ja. Das
-   ist der Fall „Kreis existiert, Gateway meldet ihn nicht“; Fehlschläge landen
-   in `failed_optional_blocks`, statt die Integration zu kippen.
+1. Die Schalter erscheinen **auch im Setup-Dialog** (siehe 4.), damit ein Nutzer
+   mit VR71-Anlage die Kreise direkt beim Anlegen mitnehmen kann.
+2. Das Aktivieren ohne gemeldetes VR71 ist **erlaubt** — der Fall „Kreis
+   existiert, Gateway meldet ihn nicht“. Fehlschläge landen in
+   `failed_optional_blocks`, statt die Integration zu kippen.
+
+## Status
+
+Umgesetzt. Verifikation: `pytest` (49 Tests), `ruff check .`,
+`ruff format --check` und `compileall` laufen sauber durch. Nicht gelaufen: jede
+Art von Zugriff auf die reale Anlage.
