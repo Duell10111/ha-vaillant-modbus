@@ -14,38 +14,47 @@ Die Einstellung muss **nach der Einrichtung jederzeit über die HA-Oberfläche
 änderbar** sein (Einstellungen → Geräte & Dienste → Vaillant Modbus Gateway →
 „Konfigurieren"), ohne die Integration zu löschen und neu einzurichten.
 
+**Der Entity-Bestand ist in beiden Modi identisch.** Alle 34 schreibbaren Werte
+(25 `number`, 6 `select`, 3 `switch`) bleiben im read-only-Modus als Entities
+erhalten und zeigen weiterhin ihren aktuellen Wert – Warmwasser-Solltemperatur,
+Heizkurve, Betriebsart und so weiter. Nur der Schreibversuch selbst wird
+abgelehnt.
+
 ## 2. Grundsatzentscheidungen
 
 | Thema | Entscheidung | Begründung |
 | --- | --- | --- |
 | Speicherort | `entry.options` (Options-Flow), **nicht** `entry.data` | Nur Options sind nachträglich über die UI änderbar; `OptionsFlowWithReload` lädt den Eintrag automatisch neu. |
-| Options-Key | `access_mode` mit Werten `read_only` / `read_write` | Sprechender String statt `bool`; erweiterbar (z. B. später `write_whitelist`), gut über `SelectSelector` + Übersetzungsschlüssel darstellbar. |
-| Default (Neu-Einrichtung) | `read_only` | Sicherer Default für ein Heizungssystem. Wer schreiben will, entscheidet sich bewusst dafür. |
-| Default (Bestands-Entry) | `read_write` | Bestehende Installationen dürfen ihre Entities und Automationen nicht verlieren. Wird beim ersten Setup nach dem Update einmalig explizit in die Options geschrieben (siehe §5). |
+| Options-Key | `access_mode` mit Werten `read_only` / `read_write` | Sprechender String statt `bool`; erweiterbar (z. B. später eine Write-Whitelist), gut über `SelectSelector` + Übersetzungsschlüssel darstellbar. |
+| Durchsetzung | **Eine zentrale Sperre** in `VaillantCoordinator.async_write_value` | Das ist der einzige Schreibpfad der Integration (AGENTS.md: „Keep I/O centralized in `VaillantCoordinator`"). Eine einzige Stelle ist prüfbar, testbar und kann nicht durch eine vergessene Entity-Klasse umgangen werden. |
+| Entity-Bestand | **Unverändert in beiden Modi** | Alle Werte bleiben sichtbar; Dashboards, Automationen, Verlaufsdaten und `entity_id`s überstehen einen Moduswechsel unbeschadet. `number.py`, `select.py` und `switch.py` werden nicht angefasst. |
 | Abfrage beim Einrichten | Ja, drittes Feld im `user`-Step | Kein zusätzlicher Flow-Schritt nötig, Nutzer trifft die Entscheidung sofort bewusst. |
-| Durchsetzung | **Zweistufig**: (a) harte Sperre im Coordinator, (b) keine schreibenden Entities im read-only-Modus | (a) ist die eigentliche Sicherheitsgarantie und greift auch bei Service-Aufrufen/Race-Conditions während eines Reloads; (b) ist die saubere UX. |
-| Plattform-Forwarding | Es werden **immer alle** Plattformen aus `PLATFORMS` geladen | Leere Plattformen sind in HA unkritisch. Bedingtes Forwarding müsste beim Unload exakt gespiegelt werden und ist eine häufige Fehlerquelle. |
+| Default (Neu-Einrichtung) | `read_only` | Sicherer Default für ein Heizungssystem – und hier ohne Nachteil, weil im read-only-Modus keinerlei Entities fehlen. |
+| Default (Bestands-Entry) | `read_write` | Bestehende Installationen schreiben heute; ihr Verhalten darf sich durch ein Update nicht stillschweigend ändern. Wird beim ersten Setup nach dem Update einmalig explizit in die Options geschrieben (§3.3). |
+| Plattform-Forwarding | Unverändert, immer alle `PLATFORMS` | Es entfällt jede Sonderbehandlung beim Setup/Unload. |
 
-### Offene Entscheidung: Sichtbarkeit der Sollwerte im read-only-Modus
+### Bewusst in Kauf genommener Nachteil
 
-Im read-only-Modus verschwinden 34 Entities (25 `number`, 6 `select`,
-3 `switch`) – darunter lesenswerte Sollwerte wie Warmwasser-Solltemperatur,
-Heizkurve oder Betriebsart.
+Im read-only-Modus zeigt die Oberfläche weiterhin Regler, Dropdowns und
+Schalter an, die aussehen, als wären sie bedienbar. Ein Bedienversuch erzeugt
+eine Fehlermeldung und der Wert springt auf den tatsächlichen Zustand zurück.
 
-- **Variante A (empfohlen, Phase 1):** Diese Werte werden im read-only-Modus
-  gar nicht angeboten. Minimaler Aufwand, keine doppelten Entity-IDs, keine
-  zusätzlichen Übersetzungen.
-- **Variante B (optionale Phase 2):** Jede schreibbare Definition wird im
-  read-only-Modus als `sensor` bzw. `binary_sensor` gespiegelt. Kosten: 34 neue
-  Einträge unter `entity.sensor` / `entity.binary_sensor` in `strings.json`,
-  `translations/en.json` und `translations/de.json`, plus Registry-Altlasten
-  beim Moduswechsel (die jeweils andere Plattform bleibt als „restored"-Entity
-  zurück).
+Gegenmaßnahmen im Plan:
 
-Der Plan setzt Variante A um und hält Variante B als klar abgegrenzte
-Folgeaufgabe offen.
+- Die Fehlermeldung ist übersetzt und benennt Ursache **und** Abhilfe
+  („Nur-Lesen-Modus ist aktiv. Ändere den Zugriffsmodus in den Optionen der
+  Integration."), statt eines generischen Fehlers.
+- Der Modus ist in den Diagnosedaten sichtbar (§3.5).
+- Die Einschränkung wird in `README.md` unter „Known limitations" dokumentiert.
+
+Optionale spätere Verfeinerung (nicht Teil dieses Plans): ein zusätzlicher
+diagnostischer `binary_sensor`, der den aktiven Zugriffsmodus anzeigt.
 
 ## 3. Änderungen im Detail
+
+Betroffen sind **fünf** Python-Dateien plus drei Übersetzungsdateien.
+`number.py`, `select.py`, `switch.py`, `sensor.py`, `binary_sensor.py`,
+`entity.py`, `register.py` und `modbus_api.py` bleiben unverändert.
 
 ### 3.1 `const.py`
 
@@ -62,45 +71,52 @@ DEFAULT_ACCESS_MODE: Final = ACCESS_MODE_READ_ONLY
 LEGACY_ACCESS_MODE: Final = ACCESS_MODE_READ_WRITE
 ```
 
-### 3.2 `coordinator.py` – harte Schreibsperre
+### 3.2 `coordinator.py` – die Schreibsperre
 
-- Neues Feld/Property auf `VaillantCoordinator`:
+Neue Properties auf `VaillantCoordinator`:
 
-  ```python
-  @property
-  def access_mode(self) -> str:
-      return str(
-          self.config_entry.options.get(CONF_ACCESS_MODE, LEGACY_ACCESS_MODE)
-      )
+```python
+@property
+def access_mode(self) -> str:
+    """Return the configured access mode for this entry."""
+    return str(self.config_entry.options.get(CONF_ACCESS_MODE, LEGACY_ACCESS_MODE))
 
-  @property
-  def read_only(self) -> bool:
-      return self.access_mode == ACCESS_MODE_READ_ONLY
-  ```
+@property
+def read_only(self) -> bool:
+    """Return whether writes to the heating system are disabled."""
+    return self.access_mode == ACCESS_MODE_READ_ONLY
+```
 
-  (Als Property gelesen, nicht im `__init__` eingefroren – so ist der Wert auch
-  dann korrekt, wenn ein Reload einmal ausbleibt.)
+Bewusst als Property und nicht als im `__init__` eingefrorener Wert: so ist der
+Modus auch dann korrekt, wenn ein Reload einmal ausbleibt oder verzögert wird.
 
-- In `async_write_value` als **allererste** Prüfung, noch vor
-  `encode_register`:
+In `async_write_value` als **allererste** Anweisung, noch vor `encode_register`:
 
-  ```python
-  if self.read_only:
-      raise HomeAssistantError(
-          translation_domain=DOMAIN,
-          translation_key="read_only_mode",
-          translation_placeholders={"key": definition.key},
-      )
-  ```
+```python
+async def async_write_value(
+    self, definition: RegisterDefinition, value: object
+) -> None:
+    """Safely encode, write with function 0x06, and refresh shared state."""
+    if self.read_only:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="read_only_mode",
+            translation_placeholders={"key": definition.key},
+        )
+    raw = encode_register(definition, value)
+    ...
+```
 
-  Wichtig: vor dem Encoding, damit im read-only-Modus garantiert kein Pfad zur
-  Bus-I/O führt. Der bestehende `RegisterAccessError`-Pfad für nicht schreibbare
-  Register bleibt unverändert (AGENTS.md: alle Writes über `encode_register`).
+Die Reihenfolge ist Teil der Zusicherung: im read-only-Modus wird ein Wert nicht
+einmal enkodiert, es gibt also keinen Pfad, der zur Bus-I/O führen könnte. Der
+bestehende `RegisterAccessError`-Pfad für grundsätzlich nicht schreibbare
+Register bleibt unverändert.
 
 ### 3.3 `__init__.py` – Einmal-Migration der Bestands-Options
 
 ```python
-async def async_setup_entry(hass, entry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: VaillantConfigEntry) -> bool:
+    """Set up a Vaillant gateway using an existing shared Modbus connection."""
     if CONF_ACCESS_MODE not in entry.options:
         hass.config_entries.async_update_entry(
             entry,
@@ -110,30 +126,15 @@ async def async_setup_entry(hass, entry) -> bool:
 ```
 
 Damit ist der Modus nach dem Update für jeden Eintrag explizit gespeichert und
-im Options-Dialog sofort korrekt vorbelegt. Ein `VERSION`/`MINOR_VERSION`-Bump
-mit `async_migrate_entry` ist dafür nicht nötig, weil nur Options ergänzt und
-keine Daten umgeschrieben werden.
+im Options-Dialog korrekt vorbelegt. Ein `VERSION`/`MINOR_VERSION`-Bump mit
+`async_migrate_entry` ist nicht nötig, weil nur Options ergänzt und keine Daten
+umgeschrieben werden.
 
-> Hinweis: `async_update_entry` innerhalb von `async_setup_entry` darf hier
-> keinen Reload auslösen – da sich nur ein bisher fehlender Schlüssel auf den
-> ohnehin geltenden Default setzt, ist das Verhalten idempotent. In den Tests
-> ist zu verifizieren, dass keine Reload-Schleife entsteht.
+Zu verifizieren: `async_update_entry` darf hier keine Reload-Schleife auslösen.
+Da nur ein fehlender Schlüssel auf den ohnehin geltenden Default gesetzt wird,
+ist der Aufruf idempotent – Test 5 in §4 sichert das ab.
 
-### 3.4 `number.py`, `select.py`, `switch.py` – Entities nur im Schreibmodus
-
-In allen drei `async_setup_entry`-Funktionen vor dem `async_add_entities`:
-
-```python
-coordinator = entry.runtime_data
-if coordinator.read_only:
-    return
-```
-
-Alternativ (kompakter, gleiche Wirkung) als zusätzliche Bedingung in der
-bestehenden Generator-Expression neben `definition_is_supported`. Empfohlen ist
-der frühe `return`, weil die Absicht damit sofort lesbar ist.
-
-### 3.5 `config_flow.py`
+### 3.4 `config_flow.py`
 
 **Setup-Step (`_user_schema`)** – drittes Feld:
 
@@ -147,24 +148,28 @@ vol.Required(CONF_ACCESS_MODE, default=DEFAULT_ACCESS_MODE): SelectSelector(
 ),
 ```
 
-Der Wert wird im `async_create_entry`-Aufruf **als `options`** übergeben, nicht
-als `data`:
+Der Wert wird in `async_create_entry` **als `options`** übergeben, nicht als
+`data`, damit er später über den Options-Flow änderbar bleibt:
 
 ```python
 return self.async_create_entry(
     title=title,
-    data={...},                       # unverändert
+    data={...},                                  # unverändert
     options={CONF_ACCESS_MODE: access_mode},
 )
 ```
 
-Validierung: Wert muss in `ACCESS_MODES` liegen, sonst `errors["base"] =
-"invalid_access_mode"`.
+Validierung analog zur bestehenden `unit_id`-Prüfung: Wert muss in
+`ACCESS_MODES` liegen, sonst `errors["base"] = "invalid_access_mode"`.
 
 **Options-Flow (`VaillantOptionsFlow.async_step_init`)** – zweites Feld im
 bestehenden Schema, damit Intervall und Modus in einem Dialog änderbar sind:
 
 ```python
+current_access_mode = str(
+    self.config_entry.options.get(CONF_ACCESS_MODE, LEGACY_ACCESS_MODE)
+)
+...
 vol.Required(CONF_ACCESS_MODE, default=current_access_mode): SelectSelector(
     SelectSelectorConfig(
         options=list(ACCESS_MODES),
@@ -187,84 +192,103 @@ return self.async_create_entry(
 ```
 
 Achtung: `async_create_entry` im Options-Flow **ersetzt** die Options
-vollständig – beide Schlüssel müssen daher immer gemeinsam geschrieben werden.
+vollständig – beide Schlüssel müssen daher immer gemeinsam geschrieben werden,
+sonst geht `scan_interval` verloren. Test 3 in §4 sichert das ab.
+
 Durch `OptionsFlowWithReload` wird der Eintrag anschließend automatisch neu
-geladen; die schreibenden Entities erscheinen bzw. verschwinden damit sofort.
+geladen. Weil der Entity-Bestand in beiden Modi identisch ist, ist der Reload
+für den Nutzer unauffällig: keine Entity verschwindet, keine `entity_id`
+ändert sich.
 
-### 3.6 `diagnostics.py`
+### 3.5 `diagnostics.py`
 
-`"access_mode": coordinator.access_mode` in das Diagnose-Dictionary aufnehmen
-(unkritisch, keine Transportdaten).
+`"access_mode": coordinator.access_mode` in das Diagnose-Dictionary aufnehmen.
+Unkritisch – enthält keine Transportdaten oder Zugangsdaten.
 
-### 3.7 Übersetzungen – `strings.json`, `translations/en.json`, `translations/de.json`
+### 3.6 Übersetzungen – `strings.json`, `translations/en.json`, `translations/de.json`
 
-Konsistent in allen drei Dateien:
+Konsistent in allen drei Dateien ergänzen:
 
 - `config.step.user.data.access_mode` – Feldname
 - `config.step.user.data_description.access_mode` – kurze Erklärung
-  („Im Nur-Lesen-Modus werden keine Werte an die Heizung geschrieben.")
 - `config.error.invalid_access_mode`
 - `options.step.init.data.access_mode` (+ `data_description`)
 - `selector.access_mode.options.read_only` / `.read_write`
   (DE: „Nur lesen" / „Lesen und schreiben")
-- `exceptions.read_only_mode.message` für den `HomeAssistantError` aus §3.2
+- `exceptions.read_only_mode.message` – die Fehlermeldung aus §3.2, mit
+  Platzhalter `{key}`.
+
+Vorschlag für die Fehlermeldung:
+
+- EN: `"{key} was not written: the integration is in read-only mode. Change the access mode in the integration options to allow writing."`
+- DE: `"{key} wurde nicht geschrieben: Die Integration läuft im Nur-Lesen-Modus. Ändere den Zugriffsmodus in den Optionen der Integration, um Schreiben zu erlauben."`
+
+Da erstmals ein `exceptions`-Block genutzt wird: Der `HomeAssistantError` muss
+mit `translation_domain`/`translation_key` konstruiert werden (nicht mit einem
+fertigen Text), damit HA die Übersetzung auflöst.
 
 ## 4. Tests (`tests/`)
 
-Ergänzend zu den bestehenden Tests – jeweils mit den vorhandenen In-Memory-/
-Mock-Unit-Abstraktionen, **kein Zugriff auf echte Hardware**:
-
-`tests/test_config_flow.py`
-1. Neu-Einrichtung ohne Angabe → Options enthalten `read_only` (sicherer Default).
-2. Neu-Einrichtung mit `read_write` → Options enthalten `read_write`.
-3. Options-Flow wechselt `read_write` → `read_only` und behält `scan_interval`.
-4. Options-Flow wechselt `read_only` → `read_write` (Rückweg).
-
-`tests/test_init.py`
-5. Bestands-Entry ohne `access_mode` in den Options → nach dem Setup steht
-   `read_write` in den Options (Migration), und der Setup läuft nicht in eine
-   Reload-Schleife.
+Alle Tests nutzen die vorhandenen In-Memory-/Mock-Unit-Abstraktionen.
+**Kein Test schreibt gegen reale Heizungshardware.**
 
 `tests/test_coordinator.py`
-6. `async_write_value` wirft im read-only-Modus `HomeAssistantError` und die
-   Mock-Unit hat **keinen** `write_register`-Aufruf gesehen.
-7. Im read-write-Modus schreibt derselbe Aufruf weiterhin korrekt (Regression).
+1. `async_write_value` wirft im read-only-Modus `HomeAssistantError` **und** die
+   Mock-Unit hat keinen `write_register`-Aufruf gesehen (die eigentliche
+   Sicherheitszusicherung).
+2. Im read-write-Modus schreibt derselbe Aufruf unverändert korrekt (Regression).
+3. Ein Eintrag ganz ohne `access_mode` in den Options verhält sich wie
+   `read_write` (Absicherung des `LEGACY_ACCESS_MODE`-Fallbacks im Property).
 
 `tests/test_entities.py`
-8. read-only-Modus → keine `number`/`select`/`switch`-Entities, `sensor` und
-   `binary_sensor` unverändert vorhanden.
-9. read-write-Modus → Entity-Bestand wie bisher.
+4. **Der Entity-Bestand ist in read-only und read-write byte-gleich** – gleiche
+   Anzahl, gleiche `entity_id`s, gleiche Plattformen. Das ist der Test, der die
+   getroffene Entscheidung dauerhaft absichert.
+5. Ein Schreibversuch über den echten Service-Aufruf
+   (`number.set_value`, `select.select_option`, `switch.turn_on`) schlägt im
+   read-only-Modus mit `HomeAssistantError` fehl, und der Entity-State bleibt
+   auf dem zuletzt gelesenen Wert.
+
+`tests/test_config_flow.py`
+6. Neu-Einrichtung ohne Angabe → Options enthalten `read_only`.
+7. Neu-Einrichtung mit `read_write` → Options enthalten `read_write`.
+8. Options-Flow wechselt `read_write` → `read_only` und **behält**
+   `scan_interval`.
+9. Options-Flow wechselt `read_only` → `read_write` (Rückweg).
+
+`tests/test_init.py`
+10. Bestands-Entry ohne `access_mode` → nach dem Setup steht `read_write` in den
+    Options, und der Setup läuft nicht in eine Reload-Schleife.
 
 ## 5. Dokumentation
 
-- `README.md`, Abschnitt **Setup**: neues Feld beim Einrichten beschreiben.
-- `README.md`, Abschnitt **Writing and safety**: Zugriffsmodus erklären, den
-  sicheren Default für Neuinstallationen und das unveränderte Verhalten für
-  Bestandsinstallationen nennen, sowie den Hinweis, dass im read-only-Modus
-  keine `number`/`select`/`switch`-Entities existieren (Automationen, die
-  darauf zugreifen, laufen ins Leere).
-- `README.md`, Abschnitt **Known limitations**: Entities aus dem jeweils
-  inaktiven Modus bleiben bis zum manuellen Entfernen als nicht verfügbare
-  Einträge in der Entity-Registry stehen.
-- `AGENTS.md`: unter „Modbus and heating-safety invariants" den Satz ergänzen,
-  dass jeder neue Schreibpfad zusätzlich die `read_only`-Sperre des Coordinators
-  respektieren muss.
-- Kein Versions-Bump von Hand – Release Please übernimmt das
-  (Conventional Commit: `feat: add configurable read-only access mode`).
+- `README.md`, Abschnitt **Setup**: neues Feld beim Einrichten beschreiben,
+  inklusive des sicheren Defaults für Neuinstallationen.
+- `README.md`, Abschnitt **Writing and safety**: Zugriffsmodus erklären;
+  ausdrücklich festhalten, dass der Entity-Bestand in beiden Modi identisch ist
+  und im read-only-Modus lediglich jeder Schreibversuch abgelehnt wird.
+- `README.md`, Abschnitt **Known limitations**: Im read-only-Modus bleiben
+  `number`/`select`/`switch` als bedienbar wirkende Steuerelemente sichtbar;
+  eine Bedienung erzeugt eine Fehlermeldung und der Wert springt zurück.
+  Automationen, die in diesem Modus schreiben, schlagen mit einem Fehler fehl.
+- `AGENTS.md`, Abschnitt „Modbus and heating-safety invariants": ergänzen, dass
+  jeder neue Schreibpfad die `read_only`-Sperre des Coordinators respektieren
+  muss und Writes ausschließlich über `async_write_value` laufen dürfen.
+- Kein Versions-Bump von Hand – Release Please übernimmt das.
+  Conventional Commit: `feat: add configurable read-only access mode`.
 
 ## 6. Umsetzungsreihenfolge
 
 1. `const.py`: Konstanten ergänzen.
 2. `coordinator.py`: `access_mode`/`read_only` + Sperre in `async_write_value`.
-3. `tests/test_coordinator.py`: Tests 6 und 7 → müssen grün sein, bevor die UI
-   folgt (die Sicherheitsgarantie zuerst).
-4. `__init__.py`: Options-Migration.
-5. `number.py`, `select.py`, `switch.py`: frühe Rückgabe.
-6. `config_flow.py`: Setup-Feld + Options-Feld.
-7. Übersetzungen in allen drei Dateien synchron.
-8. `diagnostics.py`.
-9. Restliche Tests (1–5, 8, 9).
-10. Dokumentation.
+3. `tests/test_coordinator.py`: Tests 1–3 – müssen grün sein, bevor die UI
+   folgt. Die Sicherheitszusicherung steht zuerst.
+4. `__init__.py`: Options-Migration + `tests/test_init.py` (Test 10).
+5. `config_flow.py`: Setup-Feld und Options-Feld.
+6. Übersetzungen in allen drei Dateien synchron.
+7. `diagnostics.py`.
+8. Restliche Tests (4–9).
+9. Dokumentation.
 
 ## 7. Verifikation
 
@@ -278,28 +302,28 @@ ruff format --check .
 python -m compileall custom_components/vaillant_modbus
 ```
 
-Zusätzlich manuell prüfen, dass `strings.json`, `translations/en.json` und
-`translations/de.json` dieselben Schlüssel enthalten:
+Zusätzlich prüfen, dass `strings.json`, `translations/en.json` und
+`translations/de.json` denselben Schlüsselbestand haben:
 
 ```bash
 python - <<'PY'
 import json, pathlib
 base = pathlib.Path("custom_components/vaillant_modbus")
-def keys(p, prefix=""):
-    d = json.loads(p.read_text())
+def keys(path):
     out = set()
-    def walk(node, pre):
+    def walk(node, prefix):
         for k, v in node.items():
             if isinstance(v, dict):
-                walk(v, f"{pre}{k}.")
+                walk(v, f"{prefix}{k}.")
             else:
-                out.add(f"{pre}{k}")
-    walk(d, prefix)
+                out.add(f"{prefix}{k}")
+    walk(json.loads(path.read_text()), "")
     return out
-s = keys(base / "strings.json")
+reference = keys(base / "strings.json")
 for name in ("en", "de"):
-    t = keys(base / "translations" / f"{name}.json")
-    print(name, "fehlend:", sorted(s - t), "zusätzlich:", sorted(t - s))
+    other = keys(base / "translations" / f"{name}.json")
+    print(name, "fehlend:", sorted(reference - other),
+                "zusätzlich:", sorted(other - reference))
 PY
 ```
 
@@ -309,8 +333,9 @@ Kein Test und keine Verifikation darf gegen die reale Heizung schreiben.
 
 | Risiko | Gegenmaßnahme |
 | --- | --- |
-| Bestehende Automationen brechen, wenn jemand auf read-only wechselt | Verhalten in README dokumentieren; Wechsel ist eine bewusste Nutzeraktion, Rückweg jederzeit möglich. |
-| Bestands-Entries verlieren nach dem Update ihre Schreib-Entities | Migration in §3.3 setzt explizit `read_write`; abgedeckt durch Test 5. |
-| Entity-Registry-Reste beim Moduswechsel | Als bekannte Einschränkung dokumentieren. Optional später: gezieltes Entfernen der Entities der inaktiven Plattformen beim Setup. |
-| Neuer Schreibpfad umgeht die Sperre | Sperre sitzt zentral in `async_write_value`, dem einzigen Schreibpfad; Hinweis in `AGENTS.md`. |
-| Options-Flow überschreibt `scan_interval` | Beide Schlüssel werden immer gemeinsam geschrieben; abgedeckt durch Test 3. |
+| Bestands-Installationen schreiben nach dem Update plötzlich nicht mehr | Migration in §3.3 setzt explizit `read_write`; abgedeckt durch Test 10. |
+| Nutzer bedient im read-only-Modus einen Regler und ist verwirrt | Übersetzte Fehlermeldung, die auf die Options verweist; Dokumentation unter „Known limitations". |
+| Automationen schlagen nach dem Wechsel auf read-only fehl | Bewusst lautes Scheitern statt stiller Wirkungslosigkeit; in README dokumentiert. Die betroffenen Entities bleiben erhalten, der Rückweg ist ein Klick. |
+| Options-Flow überschreibt `scan_interval` | Beide Schlüssel werden immer gemeinsam geschrieben; abgedeckt durch Test 8. |
+| Ein künftiger Schreibpfad umgeht die Sperre | Sperre sitzt im einzigen Schreibpfad `async_write_value`; Hinweis in `AGENTS.md` ergänzt. |
+| Frontend zeigt nach abgelehntem Schreibversuch kurzzeitig den optimistisch gesetzten Wert | Spätestens mit dem nächsten Coordinator-Update korrigiert. Falls der Wert in der Praxis hängen bleibt, im Entity-Schreibpfad ein explizites `self.async_write_ha_state()` nach dem Fehler ergänzen – erst nach echter Beobachtung umsetzen, nicht auf Verdacht. |
