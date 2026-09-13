@@ -23,12 +23,16 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    ACCESS_MODES,
+    CONF_ACCESS_MODE,
     CONF_CONNECTION,
     CONF_SCAN_INTERVAL,
     CONF_UNIT_ID,
+    DEFAULT_ACCESS_MODE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_UNIT_ID,
     DOMAIN,
+    LEGACY_ACCESS_MODE,
     MAX_UNIT_ID,
     NAME,
     SCAN_INTERVAL_OPTIONS,
@@ -57,7 +61,21 @@ def _user_schema(hass: HomeAssistant) -> vol.Schema:
                     mode=NumberSelectorMode.BOX,
                 )
             ),
+            vol.Required(
+                CONF_ACCESS_MODE, default=DEFAULT_ACCESS_MODE
+            ): _access_mode_selector(),
         }
+    )
+
+
+def _access_mode_selector() -> SelectSelector:
+    """Return the shared access-mode selector used by both flows."""
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=list(ACCESS_MODES),
+            mode=SelectSelectorMode.LIST,
+            translation_key="access_mode",
+        )
     )
 
 
@@ -76,15 +94,24 @@ class VaillantOptionsFlow(OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure the coordinator polling interval."""
+        """Configure the coordinator polling interval and the access mode."""
         if user_input is not None:
             scan_interval = int(user_input[CONF_SCAN_INTERVAL])
+            access_mode = str(user_input[CONF_ACCESS_MODE])
+            # Options are replaced wholesale, so always write both keys.
             return self.async_create_entry(
-                title="", data={CONF_SCAN_INTERVAL: scan_interval}
+                title="",
+                data={
+                    CONF_SCAN_INTERVAL: scan_interval,
+                    CONF_ACCESS_MODE: access_mode,
+                },
             )
 
         current = int(
             self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        )
+        current_access_mode = str(
+            self.config_entry.options.get(CONF_ACCESS_MODE, LEGACY_ACCESS_MODE)
         )
         return self.async_show_form(
             step_id="init",
@@ -100,7 +127,10 @@ class VaillantOptionsFlow(OptionsFlowWithReload):
                             mode=SelectSelectorMode.DROPDOWN,
                             translation_key="scan_interval",
                         )
-                    )
+                    ),
+                    vol.Required(
+                        CONF_ACCESS_MODE, default=current_access_mode
+                    ): _access_mode_selector(),
                 }
             ),
         )
@@ -131,11 +161,14 @@ class VaillantConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 connection_entry_id = str(user_input[CONF_CONNECTION])
                 unit_id = int(user_input[CONF_UNIT_ID])
+                access_mode = str(user_input.get(CONF_ACCESS_MODE, DEFAULT_ACCESS_MODE))
             except (KeyError, TypeError, ValueError):
                 errors["base"] = "invalid_unit_id"
             else:
                 if not 1 <= unit_id <= MAX_UNIT_ID:
                     errors["base"] = "invalid_unit_id"
+                elif access_mode not in ACCESS_MODES:
+                    errors["base"] = "invalid_access_mode"
                 else:
                     unique_id = f"{connection_entry_id}:{unit_id}"
                     await self.async_set_unique_id(unique_id)
@@ -167,6 +200,7 @@ class VaillantConfigFlow(ConfigFlow, domain=DOMAIN):
                                 CONF_UNIT_ID: unit_id,
                                 "gateway_version": gateway_version,
                             },
+                            options={CONF_ACCESS_MODE: access_mode},
                         )
 
         return self.async_show_form(

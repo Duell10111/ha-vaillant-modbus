@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from custom_components.vaillant_modbus.const import (
+    ACCESS_MODE_READ_ONLY,
+    ACCESS_MODE_READ_WRITE,
+    CONF_ACCESS_MODE,
     CONF_CONNECTION,
+    CONF_SCAN_INTERVAL,
     CONF_UNIT_ID,
     DOMAIN,
     MODBUS_CONNECTION_DOMAIN,
@@ -13,6 +17,8 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from .test_coordinator import MockUnit, _active_responses
 
 
 @pytest.fixture
@@ -99,3 +105,130 @@ async def test_duplicate_entry(
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_setup_defaults_to_read_only(
+    hass: HomeAssistant, connection_entry: MockConfigEntry
+) -> None:
+    """A new entry never writes until the user opts in."""
+    with patch(
+        "custom_components.vaillant_modbus.config_flow._async_validate_input",
+        AsyncMock(return_value="1.20.0"),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={CONF_CONNECTION: connection_entry.entry_id, CONF_UNIT_ID: 1},
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"] == {CONF_ACCESS_MODE: ACCESS_MODE_READ_ONLY}
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_setup_with_write_access(
+    hass: HomeAssistant, connection_entry: MockConfigEntry
+) -> None:
+    """The chosen access mode is stored as an option, not as entry data."""
+    with patch(
+        "custom_components.vaillant_modbus.config_flow._async_validate_input",
+        AsyncMock(return_value="1.20.0"),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_CONNECTION: connection_entry.entry_id,
+                CONF_UNIT_ID: 1,
+                CONF_ACCESS_MODE: ACCESS_MODE_READ_WRITE,
+            },
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["options"] == {CONF_ACCESS_MODE: ACCESS_MODE_READ_WRITE}
+    assert CONF_ACCESS_MODE not in result["data"]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_setup_rejects_unknown_access_mode(
+    hass: HomeAssistant, connection_entry: MockConfigEntry
+) -> None:
+    """An unknown access mode is rejected before any gateway traffic."""
+    with patch(
+        "custom_components.vaillant_modbus.config_flow._async_validate_input",
+        AsyncMock(),
+    ) as validate:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_CONNECTION: connection_entry.entry_id,
+                CONF_UNIT_ID: 1,
+                CONF_ACCESS_MODE: "write_only",
+            },
+        )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_access_mode"}
+    validate.assert_not_awaited()
+
+
+async def _change_access_mode(
+    hass: HomeAssistant, options: dict[str, object], new_mode: str
+) -> MockConfigEntry:
+    """Load an entry, run the options flow, and return the updated entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Vaillant Modbus Gateway",
+        unique_id="bus-entry:1",
+        data={CONF_CONNECTION: "bus-entry", CONF_UNIT_ID: 1},
+        options=options,
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.vaillant_modbus.async_get_unit_handle",
+        return_value=MockUnit(_active_responses()),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        assert result["type"] is FlowResultType.FORM
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input={
+                CONF_SCAN_INTERVAL: str(options[CONF_SCAN_INTERVAL]),
+                CONF_ACCESS_MODE: new_mode,
+            },
+        )
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        await hass.async_block_till_done()
+
+    return entry
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_switch_to_read_only_keeps_scan_interval(
+    hass: HomeAssistant,
+) -> None:
+    """Changing the access mode must not drop the polling interval."""
+    entry = await _change_access_mode(
+        hass,
+        {CONF_SCAN_INTERVAL: 30, CONF_ACCESS_MODE: ACCESS_MODE_READ_WRITE},
+        ACCESS_MODE_READ_ONLY,
+    )
+    assert entry.options[CONF_ACCESS_MODE] == ACCESS_MODE_READ_ONLY
+    assert int(entry.options[CONF_SCAN_INTERVAL]) == 30
+    assert entry.runtime_data.read_only is True
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_options_switch_back_to_read_write(hass: HomeAssistant) -> None:
+    """The way back to writing is a single options change."""
+    entry = await _change_access_mode(
+        hass,
+        {CONF_SCAN_INTERVAL: 10, CONF_ACCESS_MODE: ACCESS_MODE_READ_ONLY},
+        ACCESS_MODE_READ_WRITE,
+    )
+    assert entry.options[CONF_ACCESS_MODE] == ACCESS_MODE_READ_WRITE
+    assert int(entry.options[CONF_SCAN_INTERVAL]) == 10
+    assert entry.runtime_data.read_only is False
