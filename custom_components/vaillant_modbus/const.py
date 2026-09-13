@@ -14,6 +14,16 @@ MODEL: Final = "Gateway eBUS/Modbus SV2"
 CONF_CONNECTION: Final = "connection"
 CONF_UNIT_ID: Final = "unit_id"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
+CONF_ACCESS_MODE: Final = "access_mode"
+
+ACCESS_MODE_READ_ONLY: Final = "read_only"
+ACCESS_MODE_READ_WRITE: Final = "read_write"
+ACCESS_MODES: Final = (ACCESS_MODE_READ_ONLY, ACCESS_MODE_READ_WRITE)
+
+# Safe default for new entries: no write ever reaches the heating system.
+DEFAULT_ACCESS_MODE: Final = ACCESS_MODE_READ_ONLY
+# Entries created before this option existed keep their previous behavior.
+LEGACY_ACCESS_MODE: Final = ACCESS_MODE_READ_WRITE
 
 DEFAULT_UNIT_ID: Final = 1
 DEFAULT_SCAN_INTERVAL: Final = 10

@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from custom_components.vaillant_modbus.const import (
+    ACCESS_MODE_READ_ONLY,
+    ACCESS_MODE_READ_WRITE,
+    CONF_ACCESS_MODE,
     CONF_CONNECTION,
     CONF_UNIT_ID,
     DOMAIN,
 )
 from custom_components.vaillant_modbus.coordinator import VaillantCoordinator
+from custom_components.vaillant_modbus.register import REGISTER_BY_KEY
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 
@@ -44,10 +50,13 @@ class MockUnit:
         return lambda: None
 
 
-def _entry(hass: HomeAssistant) -> MockConfigEntry:
+def _entry(
+    hass: HomeAssistant, options: dict[str, Any] | None = None
+) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_CONNECTION: "bus", CONF_UNIT_ID: 1},
+        options=options or {},
     )
     entry.add_to_hass(hass)
     return entry
@@ -123,3 +132,52 @@ async def test_ebus_inactive(hass: HomeAssistant) -> None:
     assert coordinator.data.values["ebus_active"] is False
     assert unit.calls == [(3000, 6)]
     assert coordinator.data.available_blocks == frozenset({"gateway"})
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_write_rejected_in_read_only_mode(hass: HomeAssistant) -> None:
+    """Read-only mode rejects the write before any bus traffic can happen."""
+    unit = MockUnit(_active_responses())
+    entry = _entry(hass, {CONF_ACCESS_MODE: ACCESS_MODE_READ_ONLY})
+    coordinator = VaillantCoordinator(hass, entry, unit, 1)
+    await coordinator.async_refresh()
+
+    with pytest.raises(HomeAssistantError) as err:
+        await coordinator.async_write_value(
+            REGISTER_BY_KEY["hot_water_target_temperature"], 50.0
+        )
+
+    assert err.value.translation_key == "read_only_mode"
+    assert unit.writes == []
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_write_allowed_in_read_write_mode(hass: HomeAssistant) -> None:
+    """Read-write mode keeps the existing encode-and-write behavior."""
+    unit = MockUnit(_active_responses())
+    entry = _entry(hass, {CONF_ACCESS_MODE: ACCESS_MODE_READ_WRITE})
+    coordinator = VaillantCoordinator(hass, entry, unit, 1)
+    await coordinator.async_refresh()
+
+    await coordinator.async_write_value(
+        REGISTER_BY_KEY["hot_water_target_temperature"], 50.0
+    )
+
+    assert unit.writes == [(1, 500)]
+    await coordinator.async_shutdown()
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_missing_access_mode_option_writes(hass: HomeAssistant) -> None:
+    """An entry without a stored access mode keeps writing as it did before."""
+    unit = MockUnit(_active_responses())
+    coordinator = VaillantCoordinator(hass, _entry(hass), unit, 1)
+    await coordinator.async_refresh()
+
+    assert coordinator.access_mode == ACCESS_MODE_READ_WRITE
+    assert coordinator.read_only is False
+    await coordinator.async_write_value(
+        REGISTER_BY_KEY["hot_water_target_temperature"], 50.0
+    )
+    assert unit.writes == [(1, 500)]
+    await coordinator.async_shutdown()
