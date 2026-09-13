@@ -1,8 +1,8 @@
 # Plan: Heizkreise 2 und 3 einzeln über die Konfiguration ein-/abschalten
 
 Ziel: HK2 und HK3 unabhängig voneinander über die Integrationskonfiguration
-aktivieren und deaktivieren — auch bei bereits bestehenden Installationen, ohne
-deren Verhalten stillschweigend zu verändern.
+aktivieren und deaktivieren. **Standard ist deaktiviert** — nur HK1 ist ohne
+Zutun aktiv, HK2 und HK3 muss der Nutzer bewusst einschalten.
 
 ## Ausgangslage
 
@@ -19,40 +19,45 @@ Es gibt keinen Benutzer-Override. Beide Kreise hängen am **selben**
 Capability-String `"vr71"` — genau diese Kopplung aufzutrennen ist der Kern der
 Änderung.
 
-## Designentscheidung: dreistufig statt Boolean
+## Designentscheidung: Boolean pro Kreis, Default aus
 
-Pro Kreis ein Select mit `auto` / `on` / `off` statt eines Schalters.
+Pro Kreis ein Schalter (`BooleanSelector`), Default `False`. Die VR71-Erkennung
+steuert die Heizkreise danach **gar nicht mehr** — sie bleibt als
+`vr71_available`-Binärsensor und in den Diagnostics erhalten, ist für HK2/HK3
+aber nur noch Information, keine Bedingung.
 
 | Wert | Verhalten |
 | --- | --- |
-| `auto` (Default) | exakt heutiges Verhalten — die VR71-Erkennung entscheidet |
-| `on` | Kreis immer aktiv, auch ohne VR71-Flag (Block ist `optional=True`, ein fehlschlagender Read degradiert sauber) |
-| `off` | Kreis wird nie gepollt, keine Entities |
+| aus (Default) | Block wird nie gepollt, keine Entities, kein Device |
+| ein | Kreis wird gepollt und bekommt Entities, unabhängig vom VR71-Flag |
 
-Begründung gegenüber einem Boolean:
+Begründung:
 
-- Der Default `auto` **ist** die Bestandskompatibilität — kein Migrations-Write
-  beim Setup nötig, ein fehlender Options-Key bedeutet schlicht `auto`.
-- Die Erkennung bleibt nach einmaligem Speichern der Optionen am Leben. Bei
-  einem Boolean würde ein einmal gespeichertes `false` das spätere Nachrüsten
-  eines VR71 dauerhaft verdecken.
-- Kosten: ein `SelectSelector` statt `BooleanSelector`, sonst identisch.
+- Es existiert aktuell nur eine Bestandsinstallation, und die hat ausschließlich
+  HK1. Ein fehlender Options-Key bedeutet deshalb schlicht „aus“ — keine
+  Migration, kein Schreiben von Optionen beim Setup, kein Bestandsschutz-Sonderfall.
+- Die Entstehung von Entities wird damit rein konfigurationsgetrieben und
+  deterministisch. Sie hängt nicht mehr an einem Registerwert, der bei eBUS- oder
+  Reglerausfall kippen kann. Das entschärft das Cleanup erheblich (siehe 5.).
+- Ein Kreis lässt sich auch dann aktivieren, wenn das Gateway kein VR71 meldet.
+  Die Blöcke sind `optional=True`, ein fehlschlagender Read landet in
+  `failed_optional_blocks` und legt die Integration nicht lahm.
 
 ## Unabhängigkeit der beiden Kreise
 
-Die Kreise sind auf jeder Ebene getrennt; `off` für HK2 bei gleichzeitigem
-`auto` für HK3 ist eine gültige Kombination:
+Die Kreise sind auf jeder Ebene getrennt; HK2 aus und HK3 ein ist eine gültige
+Kombination:
 
 | Ebene | HK2 | HK3 |
 | --- | --- | --- |
 | Options-Key | `heating_circuit_2` | `heating_circuit_3` |
-| Formularfeld unter „Konfigurieren“ | eigenes Select | eigenes Select |
+| Formularfeld | eigener Schalter | eigener Schalter |
 | Poll-Block | `hc2` (150–160), `capability="heating_circuit_2"` | `hc3` (200–210), `capability="heating_circuit_3"` |
 | Entity-Erzeugung | `definition_is_supported()` prüft `heating_circuit_2` | prüft `heating_circuit_3` |
 | Registry-Cleanup | nur Device `…/heating_circuit_2` | nur Device `…/heating_circuit_3` |
 
-Einziger gemeinsamer Punkt: beide Felder stehen im selben Options-Dialog, und
-ein Speichern lädt den Config-Entry einmal neu.
+Einziger gemeinsamer Punkt: beide Felder stehen im selben Dialog, und ein
+Speichern der Optionen lädt den Config-Entry einmal neu.
 
 ## Änderungen im Detail
 
@@ -61,9 +66,7 @@ ein Speichern lädt den Config-Entry einmal neu.
 ```python
 CONF_HEATING_CIRCUIT_2: Final = "heating_circuit_2"
 CONF_HEATING_CIRCUIT_3: Final = "heating_circuit_3"
-CIRCUIT_MODE_AUTO / CIRCUIT_MODE_ON / CIRCUIT_MODE_OFF
-CIRCUIT_MODES: Final = (auto, on, off)
-DEFAULT_CIRCUIT_MODE: Final = CIRCUIT_MODE_AUTO
+DEFAULT_HEATING_CIRCUIT_ENABLED: Final = False
 OPTIONAL_HEATING_CIRCUITS: Final = (2, 3)
 ```
 
@@ -85,45 +88,44 @@ unangetastet.
 
 ### 3. `coordinator.py` — Kern der Änderung
 
-- `VaillantCapabilities`: `has_vr71` bleibt die reine **Erkennung**; neu
-  `heating_circuit_2: bool` / `heating_circuit_3: bool` als **aufgelöstes**
-  Ergebnis aus Option + Erkennung.
+- `VaillantCapabilities`: `has_vr71` bleibt die reine Erkennung (nur noch
+  informativ); neu `heating_circuit_2: bool` / `heating_circuit_3: bool`,
+  gelesen aus `config_entry.options` mit Default `False`.
 - `heating_circuits: int` → `tuple[int, ...]`. Ein Zähler ist irreführend,
   sobald HK2 aus und HK3 an ist. Das Feld wird heute nur in den Diagnostics
   über `asdict()` konsumiert, die Änderung ist also unkritisch.
-- Neue Helper `_circuit_mode(number)` (liest `config_entry.options`) und
-  `_resolve_circuit(number, has_vr71)`.
+- Neuer Helper `_circuit_enabled(number) -> bool`.
 - `_infer_capabilities()` ist heute `@staticmethod` und die Capability-
   Konstruktion existiert dreifach (u. a. inline in `coordinator.py:228-243` im
   eBUS-down-Zweig). Dabei einen gemeinsamen `_build_capabilities()`-Pfad
   einziehen, sonst driftet die Auflösung zwischen den Zweigen auseinander.
 - `_should_read_block()`: der `"vr71"`-Zweig wird zu zwei Zweigen auf die
-  aufgelösten Flags.
+  Options-Flags.
 - `definition_is_supported()`: `heating_circuit_2` / `heating_circuit_3` prüfen
-  die aufgelösten Flags statt `has_vr71`.
+  die Options-Flags statt `has_vr71`.
 
-### 4. `config_flow.py` — Options-Flow
+### 4. `config_flow.py` — beide Flows
 
-`async_step_init` bekommt zwei zusätzliche Select-Felder.
+- **Options-Flow** (`async_step_init`): zwei zusätzliche Schalter.
+  Wichtig: der Flow schreibt die Optionen **wholesale**
+  (`config_flow.py:99-106`, siehe Kommentar dort). Die neuen Keys müssen also
+  bei jedem Speichern mitgeschrieben werden, sonst löscht ein Speichern sie
+  wieder. `OptionsFlowWithReload` lädt den Entry anschließend automatisch neu,
+  die Plattformen werden neu aufgebaut.
+- **Setup-Flow** (`_user_schema`): dieselben zwei Schalter mit
+  `default=False`. Das kostet hier nichts, weil kein Vorbelegen aus der
+  Geräteerkennung mehr nötig ist, und sorgt für Auffindbarkeit — sonst müsste
+  ein Nutzer mit VR71-Anlage erst raten, warum HK2/HK3 fehlen.
 
-Wichtig: der Flow schreibt die Optionen **wholesale**
-(`config_flow.py:99-106`, siehe Kommentar dort). Die neuen Keys müssen also bei
-jedem Speichern mitgeschrieben werden, sonst löscht ein Speichern sie wieder.
-`OptionsFlowWithReload` lädt den Entry anschließend automatisch neu, die
-Plattformen werden also neu aufgebaut.
-
-Der **Setup**-Flow bleibt unverändert: `auto` funktioniert out of the box und
-das Setup bleibt schlank. Optional, falls Auffindbarkeit gewünscht ist: ein
-zweiter Schritt nach der Validierung, vorbelegt mit dem ohnehin schon gelesenen
-Register 3005 — `async_validate_gateway()` liest 3000–3005 und verwirft
-`words[5]` heute.
+In beiden Flows weist die `data_description` darauf hin, dass HK2/HK3 eine
+VR71-Erweiterung voraussetzen.
 
 ### 5. `__init__.py` — Registry-Cleanup
 
 Nach `async_config_entry_first_refresh()` und **vor**
 `async_forward_entry_setups()`:
 
-1. Entities eines abgewählten Kreises aus der Entity-Registry entfernen
+1. Entities eines deaktivierten Kreises aus der Entity-Registry entfernen
    (Match über die Definition-Keys der `component` statt über String-Präfixe).
 2. Anschließend das Device
    `(DOMAIN, f"{entry_id}/{unit_id}/heating_circuit_N")` per
@@ -132,48 +134,62 @@ Nach `async_config_entry_first_refresh()` und **vor**
 Ohne diesen Schritt bleiben die Entities nach dem Reload dauerhaft als
 „restored / unavailable“ stehen, weil sie einfach nicht neu angelegt werden.
 
-**Sicherheitsinvariante:** Cleanup **nur** für Kreise mit explizitem `off`,
-niemals für `auto`, das gerade als false aufgelöst wurde. Andernfalls würde ein
-einzelner Setup während eines eBUS- oder Reglerausfalls (3005 = 0) sämtliche
-HK2/HK3-Entities inklusive Historie und Entity-IDs löschen.
+Weil „deaktiviert“ jetzt ausschließlich aus der Konfiguration folgt und nicht
+mehr aus einem Registerwert, ist das Cleanup gefahrlos: ein eBUS- oder
+Reglerausfall (3005 = 0) kann keine Entities mehr löschen. Es braucht daher
+keine Sonderbehandlung zwischen „explizit aus“ und „nicht erkannt“.
 
 Keine Migration und kein Schreiben von Optionen beim Setup: ein fehlender Key
-bedeutet `auto`.
+bedeutet „aus“.
 
 ### 6. `diagnostics.py`
 
-Die konfigurierten Modi ergänzen. Die aufgelösten Flags kommen über
-`asdict(coordinator.data.capabilities)` automatisch mit.
+Die konfigurierten Schalterzustände ergänzen. Die aufgelösten Flags kommen über
+`asdict(coordinator.data.capabilities)` automatisch mit; `vr71_available` bleibt
+als reine Information erhalten.
 
 ### 7. Übersetzungen
 
 `strings.json`, `translations/en.json` und `translations/de.json` konsistent
 halten:
 
-- `options.step.init.data` und `data_description` für beide Felder
-- neuer `selector.heating_circuit_mode` mit den drei Optionen
+- `config.step.user.data` / `data_description` für beide Felder
+- `options.step.init.data` / `data_description` für beide Felder
+
+Ein eigener `selector`-Block ist nicht nötig, Boolean-Felder brauchen keine
+Options-Übersetzung.
 
 ### 8. Tests
 
 - `test_coordinator.py`
-  - `off` → Block 150 taucht nie in `unit.calls` auf, `definition_is_supported`
-    ist False.
-  - `on` bei `vr71_available = 0` → Block wird gelesen, Entities werden
+  - Default (keine Optionen) → Blöcke 150 und 200 tauchen nie in `unit.calls`
+    auf, `definition_is_supported` ist für beide False — auch bei
+    `vr71_available = 1`.
+  - HK2 ein bei `vr71_available = 0` → Block 150 wird gelesen, Entities werden
     unterstützt.
-  - Option fehlt + VR71 vorhanden → unverändertes Verhalten (Bestandsschutz).
-  - HK2 `off` + HK3 `auto` → nur Block 200 wird gelesen (Unabhängigkeit).
+  - HK2 ein + HK3 aus → nur Block 150 wird gelesen (Unabhängigkeit).
 - `test_init.py`
-  - Entity- und Device-Registry werden bei `off` bereinigt.
-  - Bei `auto` mit VR71 = 0 wird **nicht** bereinigt (Invariante aus 5.).
-- `test_config_flow.py`: Options-Flow zeigt die Defaults, speichert alle vier
-  Keys und lässt `access_mode` intakt.
-- `test_entities.py`: Entity-Zahlen je Modus.
+  - Entity- und Device-Registry werden für einen deaktivierten Kreis bereinigt.
+  - Ein aktivierter Kreis wird nicht angefasst.
+- `test_config_flow.py`: Setup-Flow legt beide Keys als `False` an;
+  Options-Flow zeigt die Defaults, speichert alle vier Keys und lässt
+  `access_mode` intakt.
+- `test_entities.py`: Entity-Zahlen mit und ohne aktivierte Kreise.
+
+Bestehende Tests, die HK2/HK3 über `vr71_available` erwarten, müssen auf die
+neue Semantik umgestellt werden — `_active_responses()` in
+`tests/test_coordinator.py` setzt 3005 heute auf 0, liefert für 150/200 aber
+Default-Nullen; mit dem neuen Default ändert sich dort nichts, die
+Erwartungshaltung in den Assertions aber schon.
 
 ### 9. `README.md`
 
-- Abschnitt „Setup“ / Configure um die neuen Optionen ergänzen.
-- Registertabelle: „only with detected VR71“ → Beschreibung der drei Modi.
-- „Known limitations“ nachziehen.
+- Abschnitt „Setup“ / Configure: die beiden neuen Schalter beschreiben und
+  ausdrücklich festhalten, dass HK2/HK3 standardmäßig aus sind.
+- Registertabelle: „only with detected VR71“ → „only when enabled in the
+  integration options“.
+- „Known limitations“ nachziehen (Aktivierung wirkt erst nach dem
+  automatischen Reload).
 - Version in `manifest.json` / `const.py` **nicht** anfassen (Release Please).
 
 ## Verifikation
@@ -191,19 +207,17 @@ Kein Zugriff auf die reale Anlage; alles über `MockUnit` aus
 
 ## Abgrenzung
 
-- **HK1 bleibt außen vor.** Der Plan macht nur HK2/HK3 abschaltbar; HK1 gilt in
+- **HK1 bleibt außen vor.** Der Plan macht nur HK2/HK3 schaltbar; HK1 gilt in
   `definition_is_supported()` weiterhin als immer vorhanden. Dieselbe Mechanik
   ließe sich auf `hc1` anwenden, der Block ist heute aber bewusst ungegated.
-- **Kein Sofort-Effekt ohne Reload.** Das Abschalten greift über den
+- **Kein Sofort-Effekt ohne Reload.** Das Ein- und Ausschalten greift über den
   automatischen Entry-Reload nach dem Speichern, nicht im laufenden Poll-Zyklus.
 - Register 600–613 (Zeitprogramme) bleiben wie dokumentiert unangetastet.
 
 ## Offene Entscheidungen
 
-1. `auto` / `on` / `off` oder nur Ein/Aus? → Empfehlung: dreistufig.
-2. Soll `on` ohne VR71 tatsächlich pollen dürfen? → Empfehlung: ja. Das ist der
-   Fall „Kreis existiert, Gateway meldet ihn nicht“. Die Blöcke sind optional,
-   Fehlschläge landen in `failed_optional_blocks` statt die Integration zu
-   kippen.
-3. HK2/HK3 zusätzlich schon im Setup-Dialog abfragen? → Empfehlung: nein, nur
-   unter „Konfigurieren“.
+1. Sollen die Schalter zusätzlich im Setup-Dialog erscheinen? → Empfehlung: ja
+   (siehe 4.), da ohne Hinweis sonst niemand ahnt, dass HK2/HK3 existieren.
+2. Soll das Aktivieren ohne gemeldetes VR71 erlaubt sein? → Empfehlung: ja. Das
+   ist der Fall „Kreis existiert, Gateway meldet ihn nicht“; Fehlschläge landen
+   in `failed_optional_blocks`, statt die Integration zu kippen.
