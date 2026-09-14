@@ -19,3 +19,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Trademark notice
+
+This license applies to the source code and documentation of this project. It
+does not grant any rights in third-party trademarks, trade names, or logos.
+"Vaillant" and the Vaillant logo are registered trademarks of Vaillant GmbH.
+The brand images in custom_components/vaillant_modbus/brand/ are used for
+identification purposes only and remain the property of their owner.

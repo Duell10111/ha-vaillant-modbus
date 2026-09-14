@@ -212,3 +212,15 @@ commands.
 Register semantics are implemented from
 `01_Modbus_Handbuch_V120.pdf`, Vaillant Deutschland GmbH & Co. KG,
 Gateway eBUS/Modbus SV2, version 1.20.0 (29 September 2023).
+
+## Trademarks
+
+This project is not affiliated with, endorsed by, or certified by Vaillant
+Group or any of its subsidiaries. "Vaillant" and the Vaillant logo are
+registered trademarks of Vaillant GmbH, Remscheid, Germany.
+
+The brand images in `custom_components/vaillant_modbus/brand/` are used for
+identification purposes only, to indicate which hardware this integration is
+compatible with. They are the property of their respective owner, are shown
+unmodified apart from scaling and cropping, and are not covered by this
+project's MIT license.
