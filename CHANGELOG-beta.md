@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.3](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.2.0-beta.2...v0.2.0-beta.3) (2026-09-15)
+
+
+### Features
+
+* add logo and trademark notice ([dd754a9](https://github.com/Duell10111/ha-vaillant-modbus/commit/dd754a9cd8c2e14e62bee8db3f7b52d792d2c882))
+
 ## [0.2.0-beta.2](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.2.0-beta.1...v0.2.0-beta.2) (2026-09-13)
 
 
