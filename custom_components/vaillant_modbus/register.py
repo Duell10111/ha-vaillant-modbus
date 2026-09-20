@@ -356,6 +356,9 @@ def _heater(number: int, base: int) -> tuple[RegisterDefinition, ...]:
                 f"{prefix}_water_pressure",
                 base + 6,
                 RegisterPlatform.SENSOR,
+                # The manual documents 1 bar per LSB, but the gateway reports
+                # 0.1 bar steps (raw 13 equals the 1.3 bar shown in the app).
+                scale=0.1,
                 unit="bar",
                 device_class="pressure",
                 state_class="measurement",
