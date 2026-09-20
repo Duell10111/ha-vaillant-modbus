@@ -28,6 +28,7 @@ from custom_components.vaillant_modbus.register import (
             0x0001000200030004,
         ),
         ("heating_circuit_1_heating_curve", [215], 2.15),
+        ("heater_1_water_pressure", [13], 1.3),
     ],
 )
 def test_decode_register_types(
