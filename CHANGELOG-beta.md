@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.4](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.2.0-beta.3...v0.2.0-beta.4) (2026-09-21)
+
+
+### Bug Fixes
+
+* update scale of water pressure to match actual numbers ([ce30a7d](https://github.com/Duell10111/ha-vaillant-modbus/commit/ce30a7da2695bf31cb96ef306d128f2faaf49c8c))
+
 ## [0.2.0-beta.3](https://github.com/Duell10111/ha-vaillant-modbus/compare/v0.2.0-beta.2...v0.2.0-beta.3) (2026-09-15)
 
 
